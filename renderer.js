@@ -1,4 +1,4 @@
-'use strict';
+// 'use strict' not required for modules?;
 
 const puppeteer = require('puppeteer');
 const PuppeteerHar = require('puppeteer-har');
