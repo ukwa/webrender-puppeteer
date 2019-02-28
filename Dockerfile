@@ -27,7 +27,7 @@ RUN chmod +x /usr/local/bin/dumb-init
 
 # Install puppeteer so it's available in the container.
 RUN npm i puppeteer
-RUN npm i puppeteer-har
+RUN npm i chrome-har
 
 # Add user so we don't need --no-sandbox.
 RUN groupadd -r pptruser && useradd -r -g pptruser -G audio,video pptruser \
@@ -38,5 +38,8 @@ RUN groupadd -r pptruser && useradd -r -g pptruser -G audio,video pptruser \
 # Run everything after as non-privileged user.
 USER pptruser
 
+ADD puppeteer-har.js .
+ADD renderer.js .
+
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["google-chrome-unstable"]
+CMD ["node", "renderer.js"]

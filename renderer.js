@@ -1,34 +1,41 @@
 // 'use strict' not required for modules?;
 
 const puppeteer = require('puppeteer');
-const PuppeteerHar = require('puppeteer-har');
+const PuppeteerHar = require('./puppeteer-har');
 const devices = require('puppeteer/DeviceDescriptors');
 const fs = require('fs');
 const { promisify } = require('util');
 
-console.log();
-
 // const url = 'http://data.webarchive.org.uk/crawl-test-site/documents/2018/12/10/broken-links.html';
 // const url = 'http://acid.matkelly.com/';
 // const url = 'https://www.gov.uk/';
-const url = 'https://www.gov.uk/government/publications?departments[]=department-of-health-and-social-care';
+// const url = 'https://www.gov.uk/government/publications?departments[]=department-of-health-and-social-care';
+//const url = 'http://example.org/';
+const url = process.argv[2];
+
+process.on('unhandledRejection', error => {
+  // Will print "unhandledRejection err is not defined"
+  console.log('unhandledRejection: ', error.message);
+  process.exit(1);
+});
 
 (async () => {
 
   // Set up the browser in the required configuration:
   const browserArgs = {
-    args: ['--disk-cache-size=0'],
+    args: ['--disk-cache-size=0', '--no-sandbox'],
   };
   // Add proxy configuration if supplied:
   if (process.env.HTTP_PROXY) {
     browserArgs.args.push('--proxy-server=' + process.env.HTTP_PROXY);
   }
+  console.log(browserArgs);
   const browser = await puppeteer.launch(browserArgs);
   const page = await browser.newPage();
 
   // Record requests/responses in a standard format:
   const har = new PuppeteerHar(page);
-  await har.start({ path: '/output/results.har' });
+  await har.start();
 
   if (false) {
     await page.emulate(devices['iPhone 6']);
@@ -42,7 +49,7 @@ const url = 'https://www.gov.uk/government/publications?departments[]=department
 
   // Render the result:
   await page.screenshot({ path: '/output/rendered.png' });
-  await page.screenshot({ path: '/output/rendered-full.png', fullPage: true });
+  const image = await page.screenshot({ path: '/output/rendered-full.png', fullPage: true });
   await page.pdf({
     path: '/output/rendered-page.pdf',
     format: 'a4',
@@ -53,7 +60,7 @@ const url = 'https://www.gov.uk/government/publications?departments[]=department
   // A place to record URLs of different kinds:
   const urls = {};
   // Get the main frame URL:
-  urls.url = await page.url()
+  urls.url = await page.url();
   // Also get hold of the transcluded resources that make up the page:
   // (this works like capturing page.on('response') events but excludes the URL of the page itself.)
   urls.E = await page.evaluate(() => (
@@ -92,9 +99,35 @@ const url = 'https://www.gov.uk/government/publications?departments[]=department
     });
     return clickables;
   });
+
+  // Write out a link summary:
   await promisify(fs.writeFile)('/output/rendered.urls.json', JSON.stringify(urls));
 
+  // Assemble the HAR:
+  const har_standard = await har.stop();
+  var har_extended = har_standard;
+  har_extended['log']['pages'][0]['url'] = await page.url();
+  har_extended['log']['pages'][0]['urls'] = urls;
+  har_extended['log']['pages'][0]['map'] = urls.map;
+  const b64_content = Buffer.from(html).toString('base64');
+  har_extended['log']['pages'][0]['renderedContent'] = { 
+    text: b64_content, 
+    encoding: "base64"
+  };
+  const b64_image = Buffer.from(image).toString('base64');
+  har_extended['log']['pages'][0]['renderedElements'] = [{
+                selector: ":root",
+                format: "PNG",
+                content: b64_image,
+                encoding: "base64"
+              }];
+
+  // Write out the extended HAR:
+  await promisify(fs.writeFile)('/output/rendered.har', JSON.stringify(har_extended));
+
   // Shut down:
-  await har.stop();
   await browser.close();
 })();
+
+
+
