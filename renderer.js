@@ -6,19 +6,22 @@ const devices = require('puppeteer/DeviceDescriptors');
 const fs = require('fs');
 const { promisify } = require('util');
 
+console.log();
+
 // const url = 'http://data.webarchive.org.uk/crawl-test-site/documents/2018/12/10/broken-links.html';
 // const url = 'http://acid.matkelly.com/';
 // const url = 'https://www.gov.uk/';
 const url = 'https://www.gov.uk/government/publications?departments[]=department-of-health-and-social-care';
 
 (async () => {
+
   // Set up the browser in the required configuration:
   const browserArgs = {
     args: ['--disk-cache-size=0'],
   };
   // Add proxy configuration if supplied:
-  if (false) {
-    browserArgs.args.push('--proxy-server=127.0.0.1:9876');
+  if (process.env.HTTP_PROXY) {
+    browserArgs.args.push('--proxy-server=' + process.env.HTTP_PROXY);
   }
   const browser = await puppeteer.launch(browserArgs);
   const page = await browser.newPage();
@@ -26,16 +29,6 @@ const url = 'https://www.gov.uk/government/publications?departments[]=department
   // Record requests/responses in a standard format:
   const har = new PuppeteerHar(page);
   await har.start({ path: '/output/results.har' });
-
-  // A place to record URLs of different kinds:
-  const urls = {};
-  urls.E = [];
-
-  // Ensure we capture attempted transcluded URLs:
-  page.on('response', (r) => {
-    // console.log(`STATUS: ${r.status()}`);
-    urls.E.push(r.url());
-  });
 
   if (false) {
     await page.emulate(devices['iPhone 6']);
@@ -57,12 +50,18 @@ const url = 'https://www.gov.uk/government/publications?departments[]=department
   const html = await page.content();
   await promisify(fs.writeFile)('/output/rendered.html', html);
 
-  // Also get hold of the resource and navigation links:
-  urls.resources = await page.evaluate(() => (
+  // A place to record URLs of different kinds:
+  const urls = {};
+  // Get the main frame URL:
+  urls.url = await page.url()
+  // Also get hold of the transcluded resources that make up the page:
+  // (this works like capturing page.on('response') events but excludes the URL of the page itself.)
+  urls.E = await page.evaluate(() => (
     performance.getEntries()
       .filter(e => e.entryType === 'resource')
       .map(e => e.name)
   ));
+  // Get hold of the navigation links:
   urls.L = await page.$$eval('a', as => as.map(a => a.href));
   urls.L = [...new Set(urls.L)];
 
