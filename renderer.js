@@ -23,6 +23,7 @@ process.on('unhandledRejection', error => {
 
   // Set up the browser in the required configuration:
   const browserArgs = {
+    ignoreHTTPSErrors: true,
     args: ['--disk-cache-size=0', '--no-sandbox'],
   };
   // Add proxy configuration if supplied:
