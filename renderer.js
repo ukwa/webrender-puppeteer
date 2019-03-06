@@ -33,7 +33,19 @@ process.on('unhandledRejection', error => {
   console.log("Browser arguments: ", browserArgs);
   const browser = await puppeteer.launch(browserArgs);
   const page = await browser.newPage();
+
+  // Set the page size:
   await page.setViewport({ width: 1280, height: 1024 });
+
+  // Set the user agent up:
+  // Add optional userAgent override:
+  if( 'USER_AGENT' in process.env ) {
+    page.setUserAgent( process.env['USER_AGENT']);
+    // e.g. 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/37.0.2062.120 Safari/537.36';
+  } else if( 'USER_AGENT_ADDITIONAL' in process.env ) {
+    page.setUserAgent( browser.userAgent() + " " + process.env['USER_AGENT_ADDITIONAL'] );
+  }
+
 
   // Record requests/responses in a standard format:
   const har = new PuppeteerHar(page);
