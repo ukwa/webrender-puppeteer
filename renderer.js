@@ -47,6 +47,19 @@ process.on('unhandledRejection', error => {
     page.setUserAgent( user_agent + " " + process.env['USER_AGENT_ADDITIONAL'] );
   }
 
+  // Set up the additional headers:
+  headers = {}
+  // Add Memento Datetime header if needed:
+  // e.g. Accept-Datetime: Thu, 31 May 2007 20:35:00 GMT
+  if( 'MEMENTO_ACCEPT_DATETIME' in process.env ) {
+      headers['Accept-Datetime'] = process.env['MEMENTO_ACCEPT_DATETIME']
+  }
+  // Add a warc-prefix as JSON in a Warcprox-Meta: header
+  if( 'WARCPROX_WARC_PREFIX' in process.env ) {
+      headers['Warcprox-Meta'] = '{ "warc-prefix": "'+process.env['WARCPROX_WARC_PREFIX']+'" }';
+  }
+  // Add to page:
+  await page.setExtraHTTPHeaders(headers);
 
   // Record requests/responses in a standard format:
   const har = new PuppeteerHar(page);
