@@ -52,6 +52,11 @@ process.on('unhandledRejection', error => {
   console.log("Scrolling down...");
   await autoScroll(page);
 
+  // Await for any more elements scrolling down prompted:
+  console.log("Waiting for any network activity to die down...");
+  //await page.waitForNavigation({ waitUntil: 'networkidle2' }) This HANGS
+  await page.waitFor(2500);
+
   // Look for any "I Accept" buttons
   console.log("Looking for any modal buttons...");
   await clickKnownModals(page);
@@ -67,7 +72,8 @@ process.on('unhandledRejection', error => {
   const image = await page.screenshot({ path: '/output/rendered-full.png', fullPage: true });
   await page.pdf({
     path: '/output/rendered-page.pdf',
-    format: 'a4',
+    format: 'A4',
+    printBackground: true
   });
   const html = await page.content();
   await promisify(fs.writeFile)('/output/rendered.html', html);
@@ -155,7 +161,7 @@ async function autoScroll(page){
                 window.scrollBy(0, distance);
                 totalHeight += distance;
 
-                if(totalHeight >= scrollHeight || scrollHeight > 2000 ){
+                if(totalHeight >= scrollHeight || totalHeight > 4000 ){
                     clearInterval(timer);
                     // Scroll back to the top:
                     window.scrollTo(0, 0);
@@ -166,10 +172,7 @@ async function autoScroll(page){
     });
 }
 
-
-async function clickKnownModals(page) {
-  const query = "I Accept".toLowerCase();
-  // n.b. also seen "Accept Recommended Settings"
+async function clickButton( page, buttonText ) {
   await page.evaluate(query => {
       const elements = [...document.querySelectorAll('button')];
 
@@ -182,7 +185,20 @@ async function clickKnownModals(page) {
 
       // make sure the element exists, and only then click it
       targetElement && targetElement.click();
-  }, query);
+  }, buttonText.toLowerCase());
+}
+
+async function clickKnownModals(page) {
+  // Click known common modals:
+  await clickButton(page, "I Accept");
+  await clickButton(page, "I Understand");
+  await clickButton(page, "Accept Recommended Settings");
+  await clickButton(page, "Close");
+  await clickButton(page, "OK");
+  await clickButton(page, "I Agree");
+
+  // Press escape for transient popups:
+  await page.keyboard.press('Escape');
 
   // Click close on a class of popup observer at https://www.britishdeafnews.co.uk/
   // Doesn't seem to work!
