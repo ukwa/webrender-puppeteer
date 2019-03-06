@@ -48,18 +48,18 @@ process.on('unhandledRejection', error => {
   console.log("Navigating to " + url);
   await page.goto(url, { waitUntil: 'networkidle0' });
 
-  // Look for any "I Accept" buttons
-  console.log("Looking for any modal buttons...");
-  await clickKnownModals(page);
-
   // Scroll down:
   console.log("Scrolling down...");
   await autoScroll(page);
 
+  // Look for any "I Accept" buttons
+  console.log("Looking for any modal buttons...");
+  await clickKnownModals(page);
+
   // Await for any more elements scrolling down prompted:
   console.log("Waiting for any network activity to die down...");
   //await page.waitForNavigation({ waitUntil: 'networkidle2' }) This HANGS
-  await page.waitFor(2000);
+  await page.waitFor(2500);
 
   // Render the result:
   console.log("Rendering...");
@@ -155,7 +155,7 @@ async function autoScroll(page){
                 window.scrollBy(0, distance);
                 totalHeight += distance;
 
-                if(totalHeight >= scrollHeight){
+                if(totalHeight >= scrollHeight || scrollHeight > 2000 ){
                     clearInterval(timer);
                     // Scroll back to the top:
                     window.scrollTo(0, 0);
@@ -169,6 +169,7 @@ async function autoScroll(page){
 
 async function clickKnownModals(page) {
   const query = "I Accept".toLowerCase();
+  // n.b. also seen "Accept Recommended Settings"
   await page.evaluate(query => {
       const elements = [...document.querySelectorAll('button')];
 
@@ -182,4 +183,14 @@ async function clickKnownModals(page) {
       // make sure the element exists, and only then click it
       targetElement && targetElement.click();
   }, query);
+
+  // Click close on a class of popup observer at https://www.britishdeafnews.co.uk/
+  // Doesn't seem to work!
+  await page.evaluate(async () => {
+      const elements = [...document.querySelectorAll('a.ppsPopupClose')];
+      const targetElement = elements[0];
+      // make sure the element exists, and only then click it
+      targetElement && targetElement.click();
+  });
+
 }
