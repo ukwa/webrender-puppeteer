@@ -30,9 +30,10 @@ process.on('unhandledRejection', error => {
   if (process.env.HTTP_PROXY) {
     browserArgs.args.push('--proxy-server=' + process.env.HTTP_PROXY);
   }
-  console.log(browserArgs);
+  console.log("Browser arguments: ", browserArgs);
   const browser = await puppeteer.launch(browserArgs);
   const page = await browser.newPage();
+  await page.setViewport({ width: 1280, height: 1024 });
 
   // Record requests/responses in a standard format:
   const har = new PuppeteerHar(page);
@@ -41,14 +42,27 @@ process.on('unhandledRejection', error => {
   if (false) {
     await page.emulate(devices['iPhone 6']);
   }
+
   // Go the the page to capture:
   // See https://github.com/GoogleChrome/puppeteer/blob/master/docs/api.md#pagegotourl-options for definitions of networkidle0/2
+  console.log("Navigating to " + url);
   await page.goto(url, { waitUntil: 'networkidle0' });
-  // Give a little extra time for rendering to finish
-  // (this is not necessary if we can use networkidle0):
-  // await page.waitFor(1000);
+
+  // Look for any "I Accept" buttons
+  console.log("Looking for any modal buttons...");
+  await clickKnownModals(page);
+
+  // Scroll down:
+  console.log("Scrolling down...");
+  await autoScroll(page);
+
+  // Await for any more elements scrolling down prompted:
+  console.log("Waiting for any network activity to die down...");
+  //await page.waitForNavigation({ waitUntil: 'networkidle2' }) This HANGS
+  await page.waitFor(2000);
 
   // Render the result:
+  console.log("Rendering...");
   await page.screenshot({ path: '/output/rendered.png' });
   const image = await page.screenshot({ path: '/output/rendered-full.png', fullPage: true });
   await page.pdf({
@@ -131,4 +145,41 @@ process.on('unhandledRejection', error => {
 })();
 
 
+async function autoScroll(page){
+    await page.evaluate(async () => {
+        await new Promise((resolve, reject) => {
+            var totalHeight = 0;
+            var distance = 100;
+            var timer = setInterval(() => {
+                var scrollHeight = document.body.scrollHeight;
+                window.scrollBy(0, distance);
+                totalHeight += distance;
 
+                if(totalHeight >= scrollHeight){
+                    clearInterval(timer);
+                    // Scroll back to the top:
+                    window.scrollTo(0, 0);
+                    resolve();
+                }
+            }, 200);
+        });
+    });
+}
+
+
+async function clickKnownModals(page) {
+  const query = "I Accept".toLowerCase();
+  await page.evaluate(query => {
+      const elements = [...document.querySelectorAll('button')];
+
+      // Either use .find or .filter, comment one of these
+      // find element with find
+      const targetElement = elements.find(e => e.innerText.toLowerCase().includes(query));
+
+      // OR, find element with filter
+      // const targetElement = elements.filter(e => e.innerText.includes(query))[0];
+
+      // make sure the element exists, and only then click it
+      targetElement && targetElement.click();
+  }, query);
+}
