@@ -73,7 +73,7 @@ process.on('unhandledRejection', error => {
 
   // Print to PDF but use the screen CSS:
   await page.emulateMedia('screen');
-  await page.pdf({
+  const pdf = await page.pdf({
     path: '/output/rendered-page.pdf',
     format: 'A4',
     scale: 0.75,
@@ -140,10 +140,16 @@ process.on('unhandledRejection', error => {
     encoding: "base64"
   };
   const b64_image = Buffer.from(image).toString('base64');
+  const b64_pdf = Buffer.from(pdf).toString('base64');
   har_extended['log']['pages'][0]['renderedElements'] = [{
                 selector: ":root",
                 format: "PNG",
                 content: b64_image,
+                encoding: "base64"
+              },{
+                selector: ":root",
+                format: "PDF",
+                content: b64_pdf,
                 encoding: "base64"
               }];
 
