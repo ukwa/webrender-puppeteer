@@ -43,7 +43,8 @@ process.on('unhandledRejection', error => {
     page.setUserAgent( process.env['USER_AGENT']);
     // e.g. 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/37.0.2062.120 Safari/537.36';
   } else if( 'USER_AGENT_ADDITIONAL' in process.env ) {
-    page.setUserAgent( browser.userAgent() + " " + process.env['USER_AGENT_ADDITIONAL'] );
+    const user_agent = await browser.userAgent();
+    page.setUserAgent( user_agent + " " + process.env['USER_AGENT_ADDITIONAL'] );
   }
 
 
