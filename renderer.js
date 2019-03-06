@@ -53,7 +53,7 @@ process.on('unhandledRejection', error => {
   await autoScroll(page);
 
   // Await for any more elements scrolling down prompted:
-  console.log("Waiting for any network activity to die down...");
+  console.log("Waiting for any activity to die down...");
   //await page.waitForNavigation({ waitUntil: 'networkidle2' }) This HANGS
   await page.waitFor(2500);
 
@@ -62,7 +62,7 @@ process.on('unhandledRejection', error => {
   await clickKnownModals(page);
 
   // Await for any more elements scrolling down prompted:
-  console.log("Waiting for any network activity to die down...");
+  console.log("Waiting for any activity to die down...");
   //await page.waitForNavigation({ waitUntil: 'networkidle2' }) This HANGS
   await page.waitFor(2500);
 
@@ -70,9 +70,13 @@ process.on('unhandledRejection', error => {
   console.log("Rendering...");
   await page.screenshot({ path: '/output/rendered.png' });
   const image = await page.screenshot({ path: '/output/rendered-full.png', fullPage: true });
+
+  // Print to PDF but use the screen CSS:
+  await page.emulateMedia('screen');
   await page.pdf({
     path: '/output/rendered-page.pdf',
     format: 'A4',
+    scale: 0.75,
     printBackground: true
   });
   const html = await page.content();
