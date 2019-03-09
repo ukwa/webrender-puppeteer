@@ -24,7 +24,7 @@ process.on('unhandledRejection', error => {
   // Set up the browser in the required configuration:
   const browserArgs = {
     ignoreHTTPSErrors: true,
-    args: ['--disk-cache-size=0', '--no-sandbox'],
+    args: ['--disk-cache-size=0', '--no-sandbox', '--ignore-certificate-errors'],
   };
   // Add proxy configuration if supplied:
   if (process.env.HTTP_PROXY) {
@@ -65,14 +65,18 @@ process.on('unhandledRejection', error => {
   const har = new PuppeteerHar(page);
   await har.start();
 
-  if (false) {
-    await page.emulate(devices['iPhone 6']);
-  }
-
   // Go the the page to capture:
   // See https://github.com/GoogleChrome/puppeteer/blob/master/docs/api.md#pagegotourl-options for definitions of networkidle0/2
   console.log("Navigating to " + url);
   await page.goto(url, { waitUntil: 'networkidle0' });
+
+  // Switch to different user agent settings to attempt to ensure additional media downloaded:
+  console.log("Switching device settings...");
+  await page.emulate(devices['iPhone 6']);
+  await page.emulate(devices['iPhone X landscape']);
+  await page.emulate(devices['Nexus 6']);
+  // Switch back to the standard device view:
+  await page.setViewport({ width: 1280, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
 
   // Scroll down:
   console.log("Scrolling down...");
