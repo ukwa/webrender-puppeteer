@@ -36,6 +36,9 @@ process.on('unhandledRejection', error => {
 
   // Set the page size:
   await page.setViewport({ width: 1280, height: 1024 });
+  
+  // Set the default timeout:
+  await page.setDefaultNavigationTimeout( 60000 ); // 60 seconds instead of 30
 
   // Set the user agent up:
   // Add optional userAgent override:
@@ -69,29 +72,31 @@ process.on('unhandledRejection', error => {
   // See https://github.com/GoogleChrome/puppeteer/blob/master/docs/api.md#pagegotourl-options for definitions of networkidle0/2
   console.log("Navigating to " + url);
   try {
-    await page.goto(url, { waitUntil: 'networkidle0',  timeout: 60000 }); // Longer timeout
+    await page.goto(url, { waitUntil: 'networkidle2' }); // Longer timeout set above
 
     // Switch to different user agent settings to attempt to ensure additional media downloaded:
     console.log("Switching device settings...");
     await page.emulate(devices['iPhone 6']);
     await page.emulate(devices['iPhone X landscape']);
     await page.emulate(devices['Nexus 6']);
+    
+    // Switch through a few widths to encourage JS-based responsive image loading:
+    await page.setViewport({ width: 480, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
+    await page.setViewport({ width: 640, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
+    await page.setViewport({ width: 800, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
+    await page.setViewport({ width: 1024, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
+
     // Switch back to the standard device view:
     await page.setViewport({ width: 1280, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
+
+    // Scroll down:
+    console.log("Scrolling down...");
+    await autoScroll(page);
 
   } catch(e) {
     console.error(e);
     console.log("But lets continue and render what we got.");
   }
-
-  // Scroll down:
-  console.log("Scrolling down...");
-  await autoScroll(page);
-
-  // Await for any more elements scrolling down prompted:
-  console.log("Waiting for any activity to die down...");
-  //await page.waitForNavigation({ waitUntil: 'networkidle2' }) This HANGS
-  await page.waitFor(2500);
 
   // Look for any "I Accept" buttons
   console.log("Looking for any modal buttons...");
@@ -99,8 +104,9 @@ process.on('unhandledRejection', error => {
 
   // Await for any more elements scrolling down prompted:
   console.log("Waiting for any activity to die down...");
-  //await page.waitForNavigation({ waitUntil: 'networkidle2' }) This HANGS
-  await page.waitFor(2500);
+  //await page.waitForNavigation({ waitUntil: 'networkidle0' }); // This will usually hang as this event has already passed.
+  await page.waitFor(5000);
+
 
   // Render the result:
   console.log("Rendering...");
