@@ -68,7 +68,7 @@ process.on('unhandledRejection', error => {
   // Go the the page to capture:
   // See https://github.com/GoogleChrome/puppeteer/blob/master/docs/api.md#pagegotourl-options for definitions of networkidle0/2
   console.log("Navigating to " + url);
-  await page.goto(url, { waitUntil: 'networkidle0' });
+  await page.goto(url, { waitUntil: 'networkidle0',  timeout: 60000 }); // Longer timeout
 
   // Switch to different user agent settings to attempt to ensure additional media downloaded:
   console.log("Switching device settings...");
