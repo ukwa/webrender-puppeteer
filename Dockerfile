@@ -34,12 +34,17 @@ RUN groupadd -r pptruser && useradd -r -g pptruser -G audio,video pptruser \
     && mkdir -p /home/pptruser/Downloads \
     && chown -R pptruser:pptruser /home/pptruser \
     && chown -R pptruser:pptruser /node_modules
+RUN mkdir /output && chown pptruser:pptruser /output
 
 # Run everything after as non-privileged user.
 USER pptruser
 
+# Add specific code for rendering:
 ADD puppeteer-har.js .
 ADD renderer.js .
+
+# Set up volume for outputs:
+VOLUME /output
 
 ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "renderer.js"]
