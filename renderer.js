@@ -34,8 +34,12 @@ process.on('unhandledRejection', error => {
   const browser = await puppeteer.launch(browserArgs);
   const page = await browser.newPage();
 
+  // Options
+  const switchDevices = true;
+  const viewportWidth = 1280;
+
   // Set the page size:
-  await page.setViewport({ width: 1280, height: 1024 });
+  await page.setViewport({ width: viewportWidth, height: 1024 });
   
   // Set the default timeout:
   await page.setDefaultNavigationTimeout( 60000 ); // 60 seconds instead of 30
@@ -74,20 +78,22 @@ process.on('unhandledRejection', error => {
   try {
     await page.goto(url, { waitUntil: 'networkidle2' }); // Longer timeout set above
 
-    // Switch to different user agent settings to attempt to ensure additional media downloaded:
-    console.log("Switching device settings...");
-    await page.emulate(devices['iPhone 6']);
-    await page.emulate(devices['iPhone X landscape']);
-    await page.emulate(devices['Nexus 6']);
-    
-    // Switch through a few widths to encourage JS-based responsive image loading:
-    await page.setViewport({ width: 480, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
-    await page.setViewport({ width: 640, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
-    await page.setViewport({ width: 800, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
-    await page.setViewport({ width: 1024, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
+    if( switchDevices ) {
+      // Switch to different user agent settings to attempt to ensure additional media downloaded:
+      console.log("Switching device settings...");
+      await page.emulate(devices['iPhone 6']);
+      await page.emulate(devices['iPhone X landscape']);
+      await page.emulate(devices['Nexus 6']);
 
-    // Switch back to the standard device view:
-    await page.setViewport({ width: 1280, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
+      // Switch through a few widths to encourage JS-based responsive image loading:
+      await page.setViewport({ width: 480, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
+      await page.setViewport({ width: 640, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
+      await page.setViewport({ width: 800, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
+      await page.setViewport({ width: 1024, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
+
+      // Switch back to the standard device view:
+      await page.setViewport({ width: viewportWidth, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
+    }
 
     // Scroll down:
     console.log("Scrolling down...");
@@ -106,7 +112,6 @@ process.on('unhandledRejection', error => {
   console.log("Waiting for any activity to die down...");
   //await page.waitForNavigation({ waitUntil: 'networkidle0' }); // This will usually hang as this event has already passed.
   await page.waitFor(5000);
-
 
   // Render the result:
   console.log("Rendering...");
@@ -128,13 +133,6 @@ process.on('unhandledRejection', error => {
   const urls = {};
   // Get the main frame URL:
   urls.url = await page.url();
-  // Also get hold of the transcluded resources that make up the page:
-  // (this works like capturing page.on('response') events but excludes the URL of the page itself.)
-  urls.E = await page.evaluate(() => (
-    performance.getEntries()
-      .filter(e => e.entryType === 'resource')
-      .map(e => e.name)
-  ));
   // Get hold of the navigation links:
   urls.L = await page.$$eval('a', as => as.map(a => a.href));
   urls.L = [...new Set(urls.L)];
@@ -167,7 +165,43 @@ process.on('unhandledRejection', error => {
     return clickables;
   });
 
-  // Write out a link summary:
+  // After rendering main view, attempt to switch between devices to grab alternative media
+  if( switchDevices ) {
+    try {
+      // Switch to different user agent settings to attempt to ensure additional media downloaded:
+      console.log("Switching device settings...");
+      await page.emulate(devices['iPhone 6']);
+      await page.emulate(devices['iPhone X landscape']);
+      await page.emulate(devices['Nexus 6']);
+
+      // Switch through a few widths to encourage JS-based responsive image loading:
+      await page.setViewport({ width: 480, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
+      await page.setViewport({ width: 640, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
+      await page.setViewport({ width: 800, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
+      await page.setViewport({ width: 1024, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
+
+      // Switch back to the standard device view:
+      await page.setViewport({ width: viewportWidth, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
+
+      // Await for any more elements the device switching prompted:
+      console.log("Waiting for any activity to die down...");
+      await page.waitFor(2000);
+
+    } catch(e) {
+        console.error(e);
+        console.log("But lets continue and render what we got.");
+    }
+  }
+
+  // Get all the transcluded resources that make up the page:
+  // (this works like capturing page.on('response') events but excludes the URL of the page itself.)
+  urls.E = await page.evaluate(() => (
+    performance.getEntries()
+      .filter(e => e.entryType === 'resource')
+      .map(e => e.name)
+  ));
+
+  // Write out the url link summary:
   await promisify(fs.writeFile)('/output/rendered.urls.json', JSON.stringify(urls));
 
   // Assemble the HAR:
