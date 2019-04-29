@@ -78,23 +78,6 @@ process.on('unhandledRejection', error => {
   try {
     await page.goto(url, { waitUntil: 'networkidle2' }); // Longer timeout set above
 
-    if( switchDevices ) {
-      // Switch to different user agent settings to attempt to ensure additional media downloaded:
-      console.log("Switching device settings...");
-      await page.emulate(devices['iPhone 6']);
-      await page.emulate(devices['iPhone X landscape']);
-      await page.emulate(devices['Nexus 6']);
-
-      // Switch through a few widths to encourage JS-based responsive image loading:
-      await page.setViewport({ width: 480, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
-      await page.setViewport({ width: 640, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
-      await page.setViewport({ width: 800, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
-      await page.setViewport({ width: 1024, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
-
-      // Switch back to the standard device view:
-      await page.setViewport({ width: viewportWidth, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
-    }
-
     // Scroll down:
     console.log("Scrolling down...");
     await autoScroll(page);
@@ -167,6 +150,7 @@ process.on('unhandledRejection', error => {
 
   // After rendering main view, attempt to switch between devices to grab alternative media
   if( switchDevices ) {
+    // TODO Debug why this is reaaallly sloooow on some sites, e.g. www.wired.co.uk, where it also over-crawls.
     try {
       // Switch to different user agent settings to attempt to ensure additional media downloaded:
       console.log("Switching device settings...");
