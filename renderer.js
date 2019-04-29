@@ -35,7 +35,7 @@ process.on('unhandledRejection', error => {
   const page = await browser.newPage();
 
   // Options
-  const switchDevices = true;
+  const switchDevices = false;
   const viewportWidth = 1280;
 
   // Set the page size:
