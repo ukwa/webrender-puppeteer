@@ -1,8 +1,10 @@
-
+#!/bin/sh
 docker run -i --rm --cap-add=SYS_ADMIN \
    -v $PWD/output:/output \
    -v $PWD/puppeteer-har.js:/webrenderer/puppeteer-har.js \
    -v $PWD/renderer.js:/webrenderer/renderer.js \
+   -e HTTPS_PROXY=${HTTPS_PROXY} \
+   -e HTTP_PROXY=${HTTP_PROXY} \
    --name puppeteer-chrome ukwa/webrender-puppeteer \
-   node /webrenderer/renderer.js http://www.wired.co.uk/ https://www.bbc.co.uk/news https://www.wikipedia.org/ https://www.bbc.co.uk/news https://twitter.com/MindCharity https://www.britishdeafnews.co.uk/ https://www.unilad.co.uk/
+   node /webrenderer/renderer.js $1
  
