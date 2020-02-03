@@ -13,9 +13,9 @@ const { promisify } = require('util');
 //const url = 'http://example.org/';
 const url = process.argv[2];
 
-process.on('unhandledRejection', error => {
+process.on('unhandledRejection', (error, p) => {
   // Will print "unhandledRejection err is not defined"
-  console.log('unhandledRejection: ', error.message);
+  console.log('unhandledRejection: ', error.message, p);
   process.exit(1);
 });
 
@@ -83,8 +83,7 @@ process.on('unhandledRejection', error => {
     await autoScroll(page);
 
   } catch(e) {
-    console.error(e);
-    console.log("But lets continue and render what we got.");
+    console.error("We got an error, but lets continue and render what we get.\n",e);
   }
 
   // Look for any "I Accept" buttons
@@ -172,8 +171,7 @@ process.on('unhandledRejection', error => {
       await page.waitFor(2000);
 
     } catch(e) {
-        console.error(e);
-        console.log("But lets continue and render what we got.");
+      console.error("We got an error, but lets continue and render what we get.\n",e);
     }
   }
 
@@ -259,24 +257,28 @@ async function clickButton( page, buttonText ) {
 }
 
 async function clickKnownModals(page) {
-  // Click known common modals:
-  await clickButton(page, "I Accept");
-  await clickButton(page, "I Understand");
-  await clickButton(page, "Accept Recommended Settings");
-  await clickButton(page, "Close");
-  await clickButton(page, "OK");
-  await clickButton(page, "I Agree");
+  try {
+    // Click known common modals:
+    await clickButton(page, "I Accept");
+    await clickButton(page, "I Understand");
+    await clickButton(page, "Accept Recommended Settings");
+    await clickButton(page, "Close");
+    await clickButton(page, "OK");
+    await clickButton(page, "I Agree");
 
-  // Press escape for transient popups:
-  await page.keyboard.press('Escape');
+    // Press escape for transient popups:
+    await page.keyboard.press('Escape');
 
-  // Click close on a class of popup observer at https://www.britishdeafnews.co.uk/
-  // Doesn't seem to work!
-  await page.evaluate(async () => {
+    // Click close on a class of popup observer at https://www.britishdeafnews.co.uk/
+    // Doesn't seem to work!
+    await page.evaluate(async () => {
       const elements = [...document.querySelectorAll('a.ppsPopupClose')];
       const targetElement = elements[0];
       // make sure the element exists, and only then click it
       targetElement && targetElement.click();
-  });
+    });
+  } catch(e) {
+    console.error("A page.evaluate failed, perhaps due to a navigation event.\n", e);
+  }
 
 }
