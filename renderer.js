@@ -32,17 +32,34 @@ process.on('unhandledRejection', (error, p) => {
   }
   console.log("Browser arguments: ", browserArgs);
   const browser = await puppeteer.launch(browserArgs);
-  const page = await browser.newPage();
+  const context = await browser.createIncognitoBrowserContext();
+  const page = await context.newPage();
 
-  // Options
-  const switchDevices = false;
-  const viewportWidth = 1280;
+  // Options for the render process:
+  if( 'SWITCH_DEVICES' in process.env ) {
+      const switchDevices = process.env["SWITCH_DEVICES"];
+  } else {
+      const switchDevices = false;
+  }
+  // Main image width:
+  const viewportWidth  = process.env["VIEWPORT_WIDTH"]  || 1366;
+  const viewportHeight = process.env["VIEWPORT_HEIGHT"] || Math.round(viewportWidth/1.6180);
 
   // Set the page size:
-  await page.setViewport({ width: viewportWidth, height: 1024 });
-  
+  await page.setViewport({ width: viewportWidth, height: viewportHeight });
+
+  // Avoid caching:
+  await page.setCacheEnabled(false);
+
   // Set the default timeout:
   await page.setDefaultNavigationTimeout( 60000 ); // 60 seconds instead of 30
+
+  // Output prefix:
+  if( 'OUTPUT_PREFIX' in process.env ) {
+    var out_prefix = process.env['OUTPUT_PREFIX'];
+  } else {
+    var out_prefix = "/output/";
+  }
 
   // Set the user agent up:
   // Add optional userAgent override:
@@ -97,19 +114,19 @@ process.on('unhandledRejection', (error, p) => {
 
   // Render the result:
   console.log("Rendering...");
-  await page.screenshot({ path: '/output/rendered.png' });
-  const image = await page.screenshot({ path: '/output/rendered-full.png', fullPage: true });
+  await page.screenshot({ path: out_prefix + 'rendered.png' });
+  const image = await page.screenshot({ path: out_prefix + 'rendered-full.png', fullPage: true });
 
   // Print to PDF but use the screen CSS:
   await page.emulateMedia('screen');
   const pdf = await page.pdf({
-    path: '/output/rendered-page.pdf',
+    path: out_prefix + 'rendered-page.pdf',
     format: 'A4',
     scale: 0.75,
     printBackground: true
   });
   const html = await page.content();
-  await promisify(fs.writeFile)('/output/rendered.html', html);
+  await promisify(fs.writeFile)(out_prefix + 'rendered.html', html);
 
   // A place to record URLs of different kinds:
   const urls = {};
@@ -184,7 +201,7 @@ process.on('unhandledRejection', (error, p) => {
   ));
 
   // Write out the url link summary:
-  await promisify(fs.writeFile)('/output/rendered.urls.json', JSON.stringify(urls));
+  await promisify(fs.writeFile)(out_prefix + 'rendered.urls.json', JSON.stringify(urls));
 
   // Assemble the HAR:
   const har_standard = await har.stop();
@@ -192,6 +209,9 @@ process.on('unhandledRejection', (error, p) => {
   har_extended['log']['pages'][0]['url'] = await page.url();
   har_extended['log']['pages'][0]['urls'] = urls;
   har_extended['log']['pages'][0]['map'] = urls.map;
+  // Also get the final set of cookies:
+  har_extended['log']['pages'][0]['cookies'] = await page.cookies();
+  // And store the rendered forms
   const b64_content = Buffer.from(html).toString('base64');
   har_extended['log']['pages'][0]['renderedContent'] = { 
     text: b64_content, 
@@ -212,7 +232,7 @@ process.on('unhandledRejection', (error, p) => {
               }];
 
   // Write out the extended HAR:
-  await promisify(fs.writeFile)('/output/rendered.har', JSON.stringify(har_extended));
+  await promisify(fs.writeFile)(out_prefix + 'rendered.har', JSON.stringify(har_extended));
 
   // Shut down:
   await browser.close();
