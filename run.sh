@@ -8,4 +8,5 @@ docker run -i --rm --cap-add=SYS_ADMIN \
    -e WARCPROX_WARC_PREFIX=${WARC_PREFIX} \
    --name puppeteer-chrome ukwa/webrender-puppeteer \
    node /webrenderer/renderer.js $1
+#   -e SWITCH_DEVICES=true \
  

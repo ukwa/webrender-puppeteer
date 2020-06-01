@@ -36,11 +36,12 @@ process.on('unhandledRejection', (error, p) => {
   const page = await context.newPage();
 
   // Options for the render process:
+  var switchDevices = false;
   if( 'SWITCH_DEVICES' in process.env ) {
-      const switchDevices = process.env["SWITCH_DEVICES"];
-  } else {
-      const switchDevices = false;
+      switchDevices = process.env["SWITCH_DEVICES"];
   }
+  console.log("switchDevices = " + switchDevices);
+
   // Main image width:
   const viewportWidth  = process.env["VIEWPORT_WIDTH"]  || 1366;
   const viewportHeight = process.env["VIEWPORT_HEIGHT"] || Math.round(viewportWidth/1.6180);
@@ -55,11 +56,11 @@ process.on('unhandledRejection', (error, p) => {
   await page.setDefaultNavigationTimeout( 60000 ); // 60 seconds instead of 30
 
   // Output prefix:
+  var out_prefix = "/output/";
   if( 'OUTPUT_PREFIX' in process.env ) {
     var out_prefix = process.env['OUTPUT_PREFIX'];
-  } else {
-    var out_prefix = "/output/";
   }
+  console.log("out_prefix = " + out_prefix);
 
   // Set the user agent up:
   // Add optional userAgent override:
