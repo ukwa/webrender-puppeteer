@@ -9,17 +9,17 @@
   "author": "",
   "license": "GPL-3.0-or-later",
   "devDependencies": {
-    "eslint": "^5.10.0",
-    "eslint-config-airbnb": "^17.1.0",
+    "eslint": "^5.16.0",
+    "eslint-config-airbnb": "^17.1.1",
     "eslint-config-google": "^0.11.0",
     "eslint-config-react": "^1.1.7",
-    "eslint-plugin-import": "^2.14.0",
-    "eslint-plugin-jsx-a11y": "^6.1.2",
-    "eslint-plugin-react": "^7.11.1"
+    "eslint-plugin-import": "^2.20.2",
+    "eslint-plugin-jsx-a11y": "^6.2.3",
+    "eslint-plugin-react": "^7.20.0"
   },
   "dependencies": {
-    "chrome-har": "^0.11.4",
+    "chrome-har": "^0.11.9",
     "puppeteer": "^1.20.0",
-    "puppeteer-har": "^1.0.5"
+    "puppeteer-har": "^1.1.2"
   }
 }
