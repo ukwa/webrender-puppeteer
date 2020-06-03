@@ -48,5 +48,4 @@ ADD renderer.js .
 # Set up volume for outputs:
 VOLUME /output
 
-ENTRYPOINT ["dumb-init", "--"]
 CMD ["node", "renderer.js"]
