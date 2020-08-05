@@ -15,7 +15,7 @@ const url = process.argv[2];
 
 process.on('unhandledRejection', (error, p) => {
   // Will print "unhandledRejection err is not defined"
-  console.log('unhandledRejection: ', error.message, p);
+  console.log('Caught sunhandledRejection: ', error.message, p);
   process.exit(1);
 });
 
@@ -24,7 +24,7 @@ process.on('unhandledRejection', (error, p) => {
   // Set up the browser in the required configuration:
   const browserArgs = {
     ignoreHTTPSErrors: true,
-    args: ['--disk-cache-size=0', '--no-sandbox', '--ignore-certificate-errors'],
+    args: ['--disk-cache-size=0', '--no-sandbox', '--ignore-certificate-errors', '--disable-dev-shm-usage'],
   };
   // Add proxy configuration if supplied:
   if (process.env.HTTP_PROXY) {
