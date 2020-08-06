@@ -119,7 +119,7 @@ process.on('unhandledRejection', (error, p) => {
   const image = await page.screenshot({ path: out_prefix + 'rendered-full.png', fullPage: true });
 
   // Print to PDF but use the screen CSS:
-  await page.emulateMedia('screen');
+  await page.emulateMediaType('screen');
   const pdf = await page.pdf({
     path: out_prefix + 'rendered-page.pdf',
     format: 'A4',
