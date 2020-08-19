@@ -1,16 +1,20 @@
+/* eslint-disable max-len */
+/* eslint-disable no-console */
 // 'use strict' not required for modules?;
 
 const puppeteer = require('puppeteer');
-const PuppeteerHar = require('./puppeteer-har');
-const devices = puppeteer.devices;
 const fs = require('fs');
 const { promisify } = require('util');
+const PuppeteerHar = require('./puppeteer-har');
+
+const { devices } = puppeteer;
 
 // const url = 'http://data.webarchive.org.uk/crawl-test-site/documents/2018/12/10/broken-links.html';
 // const url = 'http://acid.matkelly.com/';
 // const url = 'https://www.gov.uk/';
 // const url = 'https://www.gov.uk/government/publications?departments[]=department-of-health-and-social-care';
-//const url = 'http://example.org/';
+// const url = 'http://example.org/';
+
 const url = process.argv[2];
 
 process.on('unhandledRejection', (error, p) => {
@@ -19,32 +23,100 @@ process.on('unhandledRejection', (error, p) => {
   process.exit(1);
 });
 
+function headersArray(headers) {
+  const result = [];
+  Object.entries(headers).forEach(([k, v]) => {
+    if (!Object.is(v, undefined)) {
+      result.push({ name: k, value: `${v}` });
+    }
+  });
+  return result;
+}
+
+/**
+ * Captures all traffic including from Web Workers, does something with it, and continues the request
+ * @param target The page/tab/worker target to capture from.
+ */
+const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
+  if (target) {
+    const client = await target.createCDPSession();
+    // see: https://chromedevtools.github.io/devtools-protocol/tot/Fetch#method-enable
+    await client.send('Fetch.enable');
+    // see: https://chromedevtools.github.io/devtools-protocol/tot/Fetch#event-requestPaused
+    await client.on('Fetch.requestPaused', async ({
+      requestId,
+      request,
+      // frameId,
+      // resourceType,
+      // responseErrorReason,
+      // responseStatusCode,
+      // responseHeaders,
+      // networkId
+    }) => {
+      // console.log(`Intercepting ${request.url}`);
+      // Insert additional headers
+      Object.entries(extraHeaders).forEach(([k, v]) => {
+        request.headers[k] = v;
+      });
+
+      // Continuing the request with the modified header:
+      await client.send('Fetch.continueRequest', {
+        requestId,
+        headers: headersArray(request.headers),
+      });
+    });
+  }
+}
+
 (async () => {
+  // Set up any specified custom headers:
+  const extraHeaders = {};
+  // Add Memento Datetime header if needed:
+  // e.g. Accept-Datetime: Thu, 31 May 2007 20:35:00 GMT
+  if ('MEMENTO_ACCEPT_DATETIME' in process.env) {
+    extraHeaders['Accept-Datetime'] = process.env.MEMENTO_ACCEPT_DATETIME;
+  }
+  // Add a warc-prefix as JSON in a Warcprox-Meta: header
+  if ('WARCPROX_WARC_PREFIX' in process.env) {
+    extraHeaders['Warcprox-Meta'] = `{ "warc-prefix": "${process.env.WARCPROX_WARC_PREFIX}" }`;
+  }
 
   // Set up the browser in the required configuration:
   const browserArgs = {
     ignoreHTTPSErrors: true,
-    args: ['--disk-cache-size=0', '--no-sandbox', '--ignore-certificate-errors', '--disable-dev-shm-usage'],
+    args: [
+      '--disk-cache-size=0',
+      '--no-sandbox',
+      '--ignore-certificate-errors',
+      '--disable-dev-shm-usage',
+    ],
   };
   // Add proxy configuration if supplied:
   if (process.env.HTTP_PROXY) {
-    browserArgs.args.push('--proxy-server=' + process.env.HTTP_PROXY);
+    browserArgs.args.push(`--proxy-server=${process.env.HTTP_PROXY}`);
   }
-  console.log("Browser arguments: ", browserArgs);
+  console.log('Browser arguments: ', browserArgs);
   const browser = await puppeteer.launch(browserArgs);
+
+  // Add hook to track activity and modify headers in all contexts (pages, workers, etc.):
+  browser.on('targetcreated', async (target) => {
+    await interceptAllTrafficForPageUsingFetch(target, extraHeaders);
+  });
+
+  // Set up a clean 'incognito' context and page:
   const context = await browser.createIncognitoBrowserContext();
   const page = await context.newPage();
 
   // Options for the render process:
-  var switchDevices = false;
-  if( 'SWITCH_DEVICES' in process.env ) {
-      switchDevices = process.env["SWITCH_DEVICES"];
+  let switchDevices = false;
+  if ('SWITCH_DEVICES' in process.env) {
+    switchDevices = process.env.SWITCH_DEVICES;
   }
-  console.log("switchDevices = " + switchDevices);
+  console.log(`switchDevices = ${switchDevices}`);
 
   // Main image width:
-  const viewportWidth  = process.env["VIEWPORT_WIDTH"]  || 1366;
-  const viewportHeight = process.env["VIEWPORT_HEIGHT"] || Math.round(viewportWidth/1.6180);
+  const viewportWidth = process.env.VIEWPORT_WIDTH || 1366;
+  const viewportHeight = process.env.VIEWPORT_HEIGHT || Math.round(viewportWidth / 1.6180);
 
   // Set the page size:
   await page.setViewport({ width: viewportWidth, height: viewportHeight });
@@ -53,38 +125,25 @@ process.on('unhandledRejection', (error, p) => {
   await page.setCacheEnabled(false);
 
   // Set the default timeout:
-  await page.setDefaultNavigationTimeout( 60000 ); // 60 seconds instead of 30
+  await page.setDefaultNavigationTimeout(60000); // 60 seconds instead of 30
 
   // Output prefix:
-  var out_prefix = "/output/";
-  if( 'OUTPUT_PREFIX' in process.env ) {
-    var out_prefix = process.env['OUTPUT_PREFIX'];
+  let outPrefix = '/output/';
+  if ('OUTPUT_PREFIX' in process.env) {
+    outPrefix = process.env.OUTPUT_PREFIX;
   }
-  console.log("out_prefix = " + out_prefix);
+  console.log(`outPrefix = ${outPrefix}`);
 
   // Set the user agent up:
   // Add optional userAgent override:
-  if( 'USER_AGENT' in process.env ) {
-    page.setUserAgent( process.env['USER_AGENT']);
-    // e.g. 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/37.0.2062.120 Safari/537.36';
-  } else if( 'USER_AGENT_ADDITIONAL' in process.env ) {
-    const user_agent = await browser.userAgent();
-    page.setUserAgent( user_agent + " " + process.env['USER_AGENT_ADDITIONAL'] );
+  if ('USER_AGENT' in process.env) {
+    page.setUserAgent(process.env.USER_AGENT);
+    // e.g. 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) \
+    // Chrome/37.0.2062.120 Safari/537.36';
+  } else if ('USER_AGENT_ADDITIONAL' in process.env) {
+    const userAgent = await browser.userAgent();
+    page.setUserAgent(`${userAgent} ${process.env.USER_AGENT_ADDITIONAL}`);
   }
-
-  // Set up the additional headers:
-  headers = {}
-  // Add Memento Datetime header if needed:
-  // e.g. Accept-Datetime: Thu, 31 May 2007 20:35:00 GMT
-  if( 'MEMENTO_ACCEPT_DATETIME' in process.env ) {
-      headers['Accept-Datetime'] = process.env['MEMENTO_ACCEPT_DATETIME']
-  }
-  // Add a warc-prefix as JSON in a Warcprox-Meta: header
-  if( 'WARCPROX_WARC_PREFIX' in process.env ) {
-      headers['Warcprox-Meta'] = '{ "warc-prefix": "'+process.env['WARCPROX_WARC_PREFIX']+'" }';
-  }
-  // Add to page:
-  await page.setExtraHTTPHeaders(headers);
 
   // Record requests/responses in a standard format:
   const har = new PuppeteerHar(page);
@@ -92,42 +151,45 @@ process.on('unhandledRejection', (error, p) => {
 
   // Go the the page to capture:
   // See https://github.com/GoogleChrome/puppeteer/blob/master/docs/api.md#pagegotourl-options for definitions of networkidle0/2
-  console.log("Navigating to " + url);
+  console.log(`Navigating to ${url}`);
   try {
     await page.goto(url, { waitUntil: 'networkidle2' }); // Longer timeout set above
-
     // Scroll down:
-    console.log("Scrolling down...");
+    console.log('Scrolling down...');
     await autoScroll(page);
-
-  } catch(e) {
-    console.error("We got an error, but lets continue and render what we get.\n",e);
+  } catch (e) {
+    console.error('We got an error, but lets continue and render what we get.\n', e);
   }
 
   // Look for any "I Accept" buttons
-  console.log("Looking for any modal buttons...");
+  console.log('Looking for any modal buttons...');
   await clickKnownModals(page);
 
   // Await for any more elements scrolling down prompted:
-  console.log("Waiting for any activity to die down...");
-  //await page.waitForNavigation({ waitUntil: 'networkidle0' }); // This will usually hang as this event has already passed.
+  console.log('Waiting for any activity to die down...');
+  // This will usually hang as this event has already passed.
+  // await page.waitForNavigation({ waitUntil: 'networkidle0' });
   await page.waitFor(5000);
 
   // Render the result:
-  console.log("Rendering...");
-  await page.screenshot({ path: out_prefix + 'rendered.png' });
-  const image = await page.screenshot({ path: out_prefix + 'rendered-full.png', fullPage: true });
+  console.log('Rendering...');
+  const image = await page.screenshot({ path: `${outPrefix}rendered-full.png`, fullPage: true });
+  // Scroll back to the top and take the viewport screenshot:
+  await page.evaluate(async () => {
+    window.scrollTo(0, 0);
+  });
+  await page.screenshot({ path: `${outPrefix}rendered.png` });
 
   // Print to PDF but use the screen CSS:
   await page.emulateMediaType('screen');
   const pdf = await page.pdf({
-    path: out_prefix + 'rendered-page.pdf',
+    path: `${outPrefix}rendered-page.pdf`,
     format: 'A4',
     scale: 0.75,
-    printBackground: true
+    printBackground: true,
   });
   const html = await page.content();
-  await promisify(fs.writeFile)(out_prefix + 'rendered.html', html);
+  await promisify(fs.writeFile)(`${outPrefix}rendered.html`, html);
 
   // A place to record URLs of different kinds:
   const urls = {};
@@ -166,30 +228,40 @@ process.on('unhandledRejection', (error, p) => {
   });
 
   // After rendering main view, attempt to switch between devices to grab alternative media
-  if( switchDevices ) {
-    // TODO Debug why this is reaaallly sloooow on some sites, e.g. www.wired.co.uk, where it also over-crawls.
+  if (switchDevices) {
+    // TODO Debug why this is reaaallly sloooow on some sites,
+    // e.g. www.wired.co.uk, where it also over-crawls.
     try {
       // Switch to different user agent settings to attempt to ensure additional media downloaded:
-      console.log("Switching device settings...");
+      console.log('Switching device settings...');
       await page.emulate(devices['iPhone 6']);
       await page.emulate(devices['iPhone X landscape']);
       await page.emulate(devices['Nexus 6']);
 
       // Switch through a few widths to encourage JS-based responsive image loading:
-      await page.setViewport({ width: 480, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
-      await page.setViewport({ width: 640, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
-      await page.setViewport({ width: 800, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
-      await page.setViewport({ width: 1024, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
+      await page.setViewport({
+        width: 480, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false,
+      });
+      await page.setViewport({
+        width: 640, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false,
+      });
+      await page.setViewport({
+        width: 800, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false,
+      });
+      await page.setViewport({
+        width: 1024, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false,
+      });
 
       // Switch back to the standard device view:
-      await page.setViewport({ width: viewportWidth, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false});
+      await page.setViewport({
+        width: viewportWidth, height: 1024, deviceScaleFactor: 1, isMobile: false, hasTouch: false, isLandscape: false,
+      });
 
       // Await for any more elements the device switching prompted:
-      console.log("Waiting for any activity to die down...");
+      console.log('Waiting for any activity to die down...');
       await page.waitFor(2000);
-
-    } catch(e) {
-      console.error("We got an error, but lets continue and render what we get.\n",e);
+    } catch (e) {
+      console.error('We got an error, but lets continue and render what we get.\n', e);
     }
   }
 
@@ -202,90 +274,90 @@ process.on('unhandledRejection', (error, p) => {
   ));
 
   // Write out the url link summary:
-  await promisify(fs.writeFile)(out_prefix + 'rendered.urls.json', JSON.stringify(urls));
+  await promisify(fs.writeFile)(`${outPrefix}rendered.urls.json`, JSON.stringify(urls));
 
   // Assemble the HAR:
-  const har_standard = await har.stop();
-  var har_extended = har_standard;
-  har_extended['log']['pages'][0]['url'] = await page.url();
-  har_extended['log']['pages'][0]['urls'] = urls;
-  har_extended['log']['pages'][0]['map'] = urls.map;
+  const harStandard = await har.stop();
+  const harExtended = harStandard;
+  harExtended.log.pages[0].url = await page.url();
+  harExtended.log.pages[0].urls = urls;
+  harExtended.log.pages[0].map = urls.map;
   // Also get the final set of cookies:
-  har_extended['log']['pages'][0]['cookies'] = await page.cookies();
+  harExtended.log.pages[0].cookies = await page.cookies();
   // And store the rendered forms
-  const b64_content = Buffer.from(html).toString('base64');
-  har_extended['log']['pages'][0]['renderedContent'] = { 
-    text: b64_content, 
-    encoding: "base64"
+  const b64Content = Buffer.from(html).toString('base64');
+  harExtended.log.pages[0].renderedContent = {
+    text: b64Content,
+    encoding: 'base64',
   };
-  const b64_image = Buffer.from(image).toString('base64');
-  const b64_pdf = Buffer.from(pdf).toString('base64');
-  har_extended['log']['pages'][0]['renderedElements'] = [{
-                selector: ":root",
-                format: "PNG",
-                content: b64_image,
-                encoding: "base64"
-              },{
-                selector: ":root",
-                format: "PDF",
-                content: b64_pdf,
-                encoding: "base64"
-              }];
+  const b64Image = Buffer.from(image).toString('base64');
+  const b64Pdf = Buffer.from(pdf).toString('base64');
+  harExtended.log.pages[0].renderedElements = [{
+    selector: ':root',
+    format: 'PNG',
+    content: b64Image,
+    encoding: 'base64',
+  }, {
+    selector: ':root',
+    format: 'PDF',
+    content: b64Pdf,
+    encoding: 'base64',
+  }];
 
   // Write out the extended HAR:
-  await promisify(fs.writeFile)(out_prefix + 'rendered.har', JSON.stringify(har_extended));
+  await promisify(fs.writeFile)(`${outPrefix}rendered.har`, JSON.stringify(harExtended));
 
   // Shut down:
   await browser.close();
 })();
 
 
-async function autoScroll(page){
-    await page.evaluate(async () => {
-        await new Promise((resolve, reject) => {
-            var totalHeight = 0;
-            var distance = 100;
-            var timer = setInterval(() => {
-                var scrollHeight = document.body.scrollHeight;
-                window.scrollBy(0, distance);
-                totalHeight += distance;
+async function autoScroll(page) {
+  await page.evaluate(async () => {
+    await new Promise((resolve) => {
+      let totalHeight = 0;
+      const distance = 200;
+      const timer = setInterval(() => {
+        const { scrollHeight } = document.body;
+        window.scrollBy(0, distance);
+        totalHeight += distance;
 
-                if(totalHeight >= scrollHeight || totalHeight > 4000 ){
-                    clearInterval(timer);
-                    // Scroll back to the top:
-                    window.scrollTo(0, 0);
-                    resolve();
-                }
-            }, 200);
-        });
+        if (totalHeight >= scrollHeight || totalHeight > 4000) {
+          clearInterval(timer);
+          resolve();
+        }
+      }, 500);
     });
+  });
 }
 
-async function clickButton( page, buttonText ) {
-  await page.evaluate(query => {
-      const elements = [...document.querySelectorAll('button')];
+async function clickButton(page, buttonText) {
+  await page.evaluate((query) => {
+    const elements = [...document.querySelectorAll('button')];
 
-      // Either use .find or .filter, comment one of these
-      // find element with find
-      const targetElement = elements.find(e => e.innerText.toLowerCase().includes(query));
+    // Either use .find or .filter, comment one of these
+    // find element with find
+    const targetElement = elements.find(e => e.innerText.toLowerCase().includes(query));
 
-      // OR, find element with filter
-      // const targetElement = elements.filter(e => e.innerText.includes(query))[0];
+    // OR, find element with filter
+    // const targetElement = elements.filter(e => e.innerText.includes(query))[0];
 
-      // make sure the element exists, and only then click it
-      targetElement && targetElement.click();
+    // make sure the element exists, and only then click it
+    if (targetElement) {
+      targetElement.click();
+    }
   }, buttonText.toLowerCase());
 }
 
 async function clickKnownModals(page) {
   try {
     // Click known common modals:
-    await clickButton(page, "I Accept");
-    await clickButton(page, "I Understand");
-    await clickButton(page, "Accept Recommended Settings");
-    await clickButton(page, "Close");
-    await clickButton(page, "OK");
-    await clickButton(page, "I Agree");
+    await clickButton(page, 'I Accept');
+    await clickButton(page, 'I Understand');
+    await clickButton(page, 'Accept Recommended Settings');
+    await clickButton(page, 'Close');
+    await clickButton(page, 'OK');
+    await clickButton(page, 'I Agree');
 
     // Press escape for transient popups:
     await page.keyboard.press('Escape');
@@ -296,10 +368,11 @@ async function clickKnownModals(page) {
       const elements = [...document.querySelectorAll('a.ppsPopupClose')];
       const targetElement = elements[0];
       // make sure the element exists, and only then click it
-      targetElement && targetElement.click();
+      if (targetElement) {
+        targetElement.click();
+      }
     });
-  } catch(e) {
-    console.error("A page.evaluate failed, perhaps due to a navigation event.\n", e);
+  } catch (e) {
+    console.error('A page.evaluate failed, perhaps due to a navigation event.\n', e);
   }
-
 }
