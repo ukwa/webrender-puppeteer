@@ -6,6 +6,7 @@ docker run -i --rm --cap-add=SYS_ADMIN \
    -e HTTPS_PROXY=${HTTPS_PROXY} \
    -e HTTP_PROXY=${HTTP_PROXY} \
    -e WARCPROX_WARC_PREFIX=WARCPROX-PREFIX \
+   -e DEVICE_SCALE_FACTOR=1.0 \
    --name puppeteer-chrome ukwa/webrender-puppeteer:latest \
    node /webrenderer/renderer.js $1
 #   --shm-size=1gb \

@@ -115,11 +115,12 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
   console.log(`switchDevices = ${switchDevices}`);
 
   // Main image width:
-  const viewportWidth = process.env.VIEWPORT_WIDTH || 1366;
-  const viewportHeight = process.env.VIEWPORT_HEIGHT || Math.round(viewportWidth / 1.6180);
+  const viewportWidth = parseInt(process.env.VIEWPORT_WIDTH) || 1366;
+  const viewportHeight = parseInt(process.env.VIEWPORT_HEIGHT) || Math.round(viewportWidth / 1.6180);
+  const deviceScaleFactor = parseFloat(process.env.DEVICE_SCALE_FACTOR) || 1.0;
 
   // Set the page size:
-  await page.setViewport({ width: viewportWidth, height: viewportHeight });
+  await page.setViewport({ width: viewportWidth, height: viewportHeight, deviceScaleFactor: deviceScaleFactor });
 
   // Avoid caching:
   await page.setCacheEnabled(false);
