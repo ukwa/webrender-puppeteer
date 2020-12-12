@@ -93,7 +93,10 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
   };
   // Add proxy configuration if supplied:
   if (process.env.HTTP_PROXY) {
-    browserArgs.args.push(`--proxy-server=${process.env.HTTP_PROXY}`);
+    proxy_url = process.env.HTTP_PROXY;
+    // Remove any trailing slash:
+    proxy_url = proxy_url.replace(/\/$/,'')
+    browserArgs.args.push(`--proxy-server=${proxy_url}`);
   }
   console.log('Browser arguments: ', browserArgs);
   const browser = await puppeteer.launch(browserArgs);
@@ -106,6 +109,15 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
   // Set up a clean 'incognito' context and page:
   const context = await browser.createIncognitoBrowserContext();
   const page = await context.newPage();
+
+  // Set up some logging of any errors:
+  page.on('error', err=> {
+    console.log('error happen at the page: ', err);
+  });
+
+  page.on('pageerror', pageerr=> {
+    console.log('pageerror occurred: ', pageerr);
+  })
 
   // Options for the render process:
   let switchDevices = false;
@@ -154,23 +166,30 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
   // See https://github.com/GoogleChrome/puppeteer/blob/master/docs/api.md#pagegotourl-options for definitions of networkidle0/2
   console.log(`Navigating to ${url}`);
   try {
+    // Main navigation
     await page.goto(url, { waitUntil: 'networkidle2' }); // Longer timeout set above
-    // Scroll down:
+
+    // Look for any "I Accept" buttons
+    console.log('Looking for any modal buttons...');
+    await clickKnownModals(page);
+
+    // Await for any more elements scrolling down prompted:
+    console.log('Waiting for any activity to die down...');
+    // Usinf networkidle0 will usually hang as this event has already passed.
+    // await page.waitForNavigation({ waitUntil: 'networkidle0' });
+    await page.waitForTimeout(5000);
+
+    // Now scroll down:
     console.log('Scrolling down...');
     await autoScroll(page);
+  
+    // Await for any more elements scrolling down prompted:
+    console.log('Waiting for any activity to die down...');
+    await page.waitForTimeout(2000);
+
   } catch (e) {
     console.error('We got an error, but lets continue and render what we get.\n', e);
   }
-
-  // Look for any "I Accept" buttons
-  console.log('Looking for any modal buttons...');
-  await clickKnownModals(page);
-
-  // Await for any more elements scrolling down prompted:
-  console.log('Waiting for any activity to die down...');
-  // This will usually hang as this event has already passed.
-  // await page.waitForNavigation({ waitUntil: 'networkidle0' });
-  await page.waitFor(5000);
 
   // Render the result:
   console.log('Rendering...');
@@ -260,7 +279,7 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
 
       // Await for any more elements the device switching prompted:
       console.log('Waiting for any activity to die down...');
-      await page.waitFor(2000);
+      await page.waitForTimeout(2000);
     } catch (e) {
       console.error('We got an error, but lets continue and render what we get.\n', e);
     }
@@ -309,6 +328,7 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
   await promisify(fs.writeFile)(`${outPrefix}rendered.har`, JSON.stringify(harExtended));
 
   // Shut down:
+  console.log('Shutting down...');
   await browser.close();
 })();
 
@@ -317,7 +337,7 @@ async function autoScroll(page) {
   await page.evaluate(async () => {
     await new Promise((resolve) => {
       let totalHeight = 0;
-      const distance = 200;
+      const distance = window.innerHeight;
       const timer = setInterval(() => {
         const { scrollHeight } = document.body;
         window.scrollBy(0, distance);
@@ -327,7 +347,7 @@ async function autoScroll(page) {
           clearInterval(timer);
           resolve();
         }
-      }, 500);
+      }, 1000);
     });
   });
 }
@@ -352,14 +372,6 @@ async function clickButton(page, buttonText) {
 
 async function clickKnownModals(page) {
   try {
-    // Click known common modals:
-    await clickButton(page, 'I Accept');
-    await clickButton(page, 'I Understand');
-    await clickButton(page, 'Accept Recommended Settings');
-    await clickButton(page, 'Close');
-    await clickButton(page, 'OK');
-    await clickButton(page, 'I Agree');
-
     // Press escape for transient popups:
     await page.keyboard.press('Escape');
 
@@ -373,6 +385,15 @@ async function clickKnownModals(page) {
         targetElement.click();
       }
     });
+
+    // Click known common modals (doing these last as some lead to navigation events):
+    await clickButton(page, 'I Accept');
+    await clickButton(page, 'I Understand');
+    await clickButton(page, 'Accept Recommended Settings');
+    await clickButton(page, 'Close');
+    await clickButton(page, 'OK');
+    await clickButton(page, 'I Agree');
+
   } catch (e) {
     console.error('A page.evaluate failed, perhaps due to a navigation event.\n', e);
   }
