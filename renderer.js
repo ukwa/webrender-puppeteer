@@ -41,7 +41,13 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
   if (target) {
     const client = await target.createCDPSession();
     // see: https://chromedevtools.github.io/devtools-protocol/tot/Fetch#method-enable
-    await client.send('Fetch.enable');
+    // In rare cases ( https://covid19ukmap.com/ ) this can crash out, so protect against exceptions:
+    try {
+      await client.send('Fetch.enable');
+      console.log('Sent Fetch.enable.');
+    } catch(error) {
+      console.log('Exception when sending Fetch.enable: ', error.message);
+    }
     // see: https://chromedevtools.github.io/devtools-protocol/tot/Fetch#event-requestPaused
     await client.on('Fetch.requestPaused', async ({
       requestId,
