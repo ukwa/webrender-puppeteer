@@ -200,22 +200,6 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
   // Render the result:
   console.log('Rendering...');
   const image = await page.screenshot({ path: `${outPrefix}rendered-full.png`, fullPage: true });
-  // Scroll back to the top and take the viewport screenshot:
-  await page.evaluate(async () => {
-    window.scrollTo(0, 0);
-  });
-  await page.screenshot({ path: `${outPrefix}rendered.png` });
-
-  // Print to PDF but use the screen CSS:
-  await page.emulateMediaType('screen');
-  const pdf = await page.pdf({
-    path: `${outPrefix}rendered-page.pdf`,
-    format: 'A4',
-    scale: 0.75,
-    printBackground: true,
-  });
-  const html = await page.content();
-  await promisify(fs.writeFile)(`${outPrefix}rendered.html`, html);
 
   // A place to record URLs of different kinds:
   const urls = {};
@@ -252,6 +236,23 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
     });
     return clickables;
   });
+
+  // Scroll back to the top and take the viewport screenshot:
+  await page.evaluate(async () => {
+    window.scrollTo(0, 0);
+  });
+  await page.screenshot({ path: `${outPrefix}rendered.png` });
+
+  // Print to PDF but use the screen CSS:
+  await page.emulateMediaType('screen');
+  const pdf = await page.pdf({
+    path: `${outPrefix}rendered-page.pdf`,
+    format: 'A4',
+    scale: 0.75,
+    printBackground: true,
+  });
+  const html = await page.content();
+  await promisify(fs.writeFile)(`${outPrefix}rendered.html`, html);
 
   // After rendering main view, attempt to switch between devices to grab alternative media
   if (switchDevices) {
