@@ -174,6 +174,8 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
   try {
     // Main navigation
     await page.goto(url, { waitUntil: 'networkidle2' }); // Longer timeout set above
+    console.log('Waiting for delayed popups...');
+    await page.waitForTimeout(2000);
 
     // Look for any "I Accept" buttons
     console.log('Looking for any modal buttons...');
@@ -183,7 +185,7 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
     console.log('Waiting for any activity to die down...');
     // Usinf networkidle0 will usually hang as this event has already passed.
     // await page.waitForNavigation({ waitUntil: 'networkidle0' });
-    await page.waitForTimeout(5000);
+    await page.waitForTimeout(4000);
 
     // Now scroll down:
     console.log('Scrolling down...');
@@ -191,7 +193,7 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
   
     // Await for any more elements scrolling down prompted:
     console.log('Waiting for any activity to die down...');
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(6000);
 
   } catch (e) {
     console.error('We got an error, but lets continue and render what we get.\n', e);
@@ -199,6 +201,7 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
 
   // Render the result:
   console.log('Rendering...');
+  // Full page:
   const image = await page.screenshot({ path: `${outPrefix}rendered-full.png`, fullPage: true });
 
   // A place to record URLs of different kinds:
@@ -238,9 +241,17 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
   });
 
   // Scroll back to the top and take the viewport screenshot:
+  console.log('Scrolling back to top...');
   await page.evaluate(async () => {
     window.scrollTo(0, 0);
   });
+
+  // Await for any further activity following the scroll back:
+  console.log('Waiting for any activity to die down...');
+  await page.waitForTimeout(1000);
+
+  // Viewport only:
+  console.log('Rendering...');
   await page.screenshot({ path: `${outPrefix}rendered.png` });
 
   // Print to PDF but use the screen CSS:
@@ -340,6 +351,7 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
 })();
 
 
+// Automatically scroll down:
 async function autoScroll(page) {
   await page.evaluate(async () => {
     await new Promise((resolve) => {
@@ -400,6 +412,7 @@ async function clickKnownModals(page) {
     await clickButton(page, 'Close');
     await clickButton(page, 'OK');
     await clickButton(page, 'I Agree');
+    await clickButton(page, 'AGREE');
 
   } catch (e) {
     console.error('A page.evaluate failed, perhaps due to a navigation event.\n', e);
