@@ -413,6 +413,7 @@ async function clickKnownModals(page) {
     await clickButton(page, 'OK');
     await clickButton(page, 'I Agree');
     await clickButton(page, 'AGREE');
+    await clickButton(page, 'Allow all');
 
   } catch (e) {
     console.error('A page.evaluate failed, perhaps due to a navigation event.\n', e);
