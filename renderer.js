@@ -65,11 +65,15 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
         request.headers[k] = v;
       });
 
-      // Continuing the request with the modified header:
-      await client.send('Fetch.continueRequest', {
-        requestId,
-        headers: headersArray(request.headers),
-      });
+      try {
+        // Continuing the request with the modified header:
+        await client.send('Fetch.continueRequest', {
+          requestId,
+          headers: headersArray(request.headers),
+        });
+      } catch(error) {
+        console.log('Exception when seding Fetch.continueRequest: ', error.message);
+      }
     });
   }
 }
