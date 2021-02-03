@@ -383,6 +383,8 @@ async function clickButton(page, buttonText) {
     // find element with find
     const targetElement = elements.find(e => e.innerText.toLowerCase().includes(query));
 
+    // To do? Also check aria-label="Close" style buttons?
+
     // OR, find element with filter
     // const targetElement = elements.filter(e => e.innerText.includes(query))[0];
 
