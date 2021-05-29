@@ -15,11 +15,9 @@ const { devices } = puppeteer;
 // const url = 'https://www.gov.uk/government/publications?departments[]=department-of-health-and-social-care';
 // const url = 'http://example.org/';
 
-const url = process.argv[2];
-
 process.on('unhandledRejection', (error, p) => {
   // Will print "unhandledRejection err is not defined"
-  console.log('Caught sunhandledRejection: ', error.message, p);
+  console.log('Caught unhandledRejection: ', error.message, p);
   process.exit(1);
 });
 
@@ -78,48 +76,7 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
   }
 }
 
-(async () => {
-  // Set up any specified custom headers:
-  const extraHeaders = {};
-  // Add Memento Datetime header if needed:
-  // e.g. Accept-Datetime: Thu, 31 May 2007 20:35:00 GMT
-  if ('MEMENTO_ACCEPT_DATETIME' in process.env) {
-    extraHeaders['Accept-Datetime'] = process.env.MEMENTO_ACCEPT_DATETIME;
-  }
-  // Add a warc-prefix as JSON in a Warcprox-Meta: header
-  if ('WARCPROX_WARC_PREFIX' in process.env) {
-    extraHeaders['Warcprox-Meta'] = `{ "warc-prefix": "${process.env.WARCPROX_WARC_PREFIX}" }`;
-  }
-
-  // Set up the browser in the required configuration:
-  const browserArgs = {
-    ignoreHTTPSErrors: true,
-    args: [
-      '--disk-cache-size=0',
-      '--no-sandbox',
-      '--ignore-certificate-errors',
-      '--disable-dev-shm-usage',
-    ],
-  };
-  // Add proxy configuration if supplied:
-  if (process.env.HTTP_PROXY) {
-    proxy_url = process.env.HTTP_PROXY;
-    // Remove any trailing slash:
-    proxy_url = proxy_url.replace(/\/$/,'')
-    browserArgs.args.push(`--proxy-server=${proxy_url}`);
-  }
-  console.log('Browser arguments: ', browserArgs);
-  const browser = await puppeteer.launch(browserArgs);
-
-  // Add hook to track activity and modify headers in all contexts (pages, workers, etc.):
-  browser.on('targetcreated', async (target) => {
-    await interceptAllTrafficForPageUsingFetch(target, extraHeaders);
-  });
-
-  // Set up a clean 'incognito' context and page:
-  const context = await browser.createIncognitoBrowserContext();
-  const page = await context.newPage();
-
+async function render_page(page, url) {
   // Set up some logging of any errors:
   page.on('error', err=> {
     console.log('error happen at the page: ', err);
@@ -149,13 +106,6 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
 
   // Set the default timeout:
   await page.setDefaultNavigationTimeout(60000); // 60 seconds instead of 30
-
-  // Output prefix:
-  let outPrefix = '/output/';
-  if ('OUTPUT_PREFIX' in process.env) {
-    outPrefix = process.env.OUTPUT_PREFIX;
-  }
-  console.log(`outPrefix = ${outPrefix}`);
 
   // Set the user agent up:
   // Add optional userAgent override:
@@ -206,7 +156,8 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
   // Render the result:
   console.log('Rendering...');
   // Full page:
-  const image = await page.screenshot({ path: `${outPrefix}rendered-full.png`, fullPage: true });
+  const image = await page.screenshot({ fullPage: true });
+  //const image = await page.screenshot({ path: `${outPrefix}rendered-full.png`, fullPage: true });
 
   // A place to record URLs of different kinds:
   const urls = {};
@@ -256,18 +207,19 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
 
   // Viewport only:
   console.log('Rendering...');
-  await page.screenshot({ path: `${outPrefix}rendered.png` });
+  const screenshot = await page.screenshot();
+  //const screenshot = await page.screenshot({ path: `${outPrefix}rendered.png` });
 
   // Print to PDF but use the screen CSS:
   await page.emulateMediaType('screen');
   const pdf = await page.pdf({
-    path: `${outPrefix}rendered-page.pdf`,
+    //path: `${outPrefix}rendered-page.pdf`,
     format: 'A4',
     scale: 0.75,
     printBackground: true,
   });
   const html = await page.content();
-  await promisify(fs.writeFile)(`${outPrefix}rendered.html`, html);
+  //await promisify(fs.writeFile)(`${outPrefix}rendered.html`, html);
 
   // After rendering main view, attempt to switch between devices to grab alternative media
   if (switchDevices) {
@@ -316,7 +268,7 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
   ));
 
   // Write out the url link summary:
-  await promisify(fs.writeFile)(`${outPrefix}rendered.urls.json`, JSON.stringify(urls));
+  //await promisify(fs.writeFile)(`${outPrefix}rendered.urls.json`, JSON.stringify(urls));
 
   // Assemble the HAR:
   const harStandard = await har.stop();
@@ -346,14 +298,77 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
     encoding: 'base64',
   }];
 
+  return harExtended;
+}
+
+async function render(url) {
+  // Set up any specified custom headers:
+  const extraHeaders = {};
+  // Add Memento Datetime header if needed:
+  // e.g. Accept-Datetime: Thu, 31 May 2007 20:35:00 GMT
+  if ('MEMENTO_ACCEPT_DATETIME' in process.env) {
+    extraHeaders['Accept-Datetime'] = process.env.MEMENTO_ACCEPT_DATETIME;
+  }
+  // Add a warc-prefix as JSON in a Warcprox-Meta: header
+  if ('WARCPROX_WARC_PREFIX' in process.env) {
+    extraHeaders['Warcprox-Meta'] = `{ "warc-prefix": "${process.env.WARCPROX_WARC_PREFIX}" }`;
+  }
+
+  // Set up the browser in the required configuration:
+  const browserArgs = {
+    ignoreHTTPSErrors: true,
+    args: [
+      '--disk-cache-size=0',
+      '--no-sandbox',
+      '--ignore-certificate-errors',
+      '--disable-dev-shm-usage',
+      "--no-xshm", // needed for Chrome >80 (check if puppeteer adds automatically)
+      "--disable-background-media-suspend",
+      "--autoplay-policy=no-user-gesture-required",
+      "--disable-features=IsolateOrigins,site-per-process",
+      "--disable-popup-blocking",
+      "--disable-backgrounding-occluded-windows",
+    ],
+  };
+  // Add proxy configuration if supplied:
+  if (process.env.HTTP_PROXY) {
+    proxy_url = process.env.HTTP_PROXY;
+    // Remove any trailing slash:
+    proxy_url = proxy_url.replace(/\/$/,'')
+    browserArgs.args.push(`--proxy-server=${proxy_url}`);
+  }
+  console.log('Browser arguments: ', browserArgs);
+  const browser = await puppeteer.launch(browserArgs);
+
+  // Add hook to track activity and modify headers in all contexts (pages, workers, etc.):
+  browser.on('targetcreated', async (target) => {
+    await interceptAllTrafficForPageUsingFetch(target, extraHeaders);
+  });
+
+  // Set up a clean 'incognito' context and page:
+  const context = await browser.createIncognitoBrowserContext();
+  const page = await context.newPage();
+
+  // Run the page-level rendering process:
+  harExtended = render_page(page, url);
+
+  // Output prefix:
+  let outPrefix = '/output/';
+  if ('OUTPUT_PREFIX' in process.env) {
+    outPrefix = process.env.OUTPUT_PREFIX;
+  }
+  console.log(`outPrefix = ${outPrefix}`);
+
   // Write out the extended HAR:
   await promisify(fs.writeFile)(`${outPrefix}rendered.har`, JSON.stringify(harExtended));
 
   // Shut down:
   console.log('Shutting down...');
   await browser.close();
-})();
 
+  // And return the result too:
+  return harExtended;
+}
 
 // Automatically scroll down:
 async function autoScroll(page) {
@@ -424,4 +439,9 @@ async function clickKnownModals(page) {
   } catch (e) {
     console.error('A page.evaluate failed, perhaps due to a navigation event.\n', e);
   }
+}
+
+module.exports = {
+  render_page,
+  render
 }

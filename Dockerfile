@@ -42,10 +42,9 @@ RUN mkdir /output && chown pptruser:pptruser /output
 USER pptruser
 
 # Add specific code for rendering:
-ADD puppeteer-har.js .
-ADD renderer.js .
+ADD *.js .
 
 # Set up volume for outputs:
 VOLUME /output
 
-CMD ["node", "renderer.js"]
+CMD ["node", "cmd.js"]

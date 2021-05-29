@@ -1,6 +1,17 @@
-const express = require('express');
-const app = express();
+const app = require("express")();
+
+const promBundle = require("express-prom-bundle");
+const promClient = require('prom-client');
+const metricsMiddleware = promBundle({includeMethod: true});
+app.use(metricsMiddleware);
+
 const { Cluster } = require("puppeteer-cluster");
+const { render_page } = require("./renderer.js");
+
+const g1 = new promClient.Gauge({name: 'puppeteer_cluster_all_target_count', help: 'The total number of targets processed by this Puppeteer cluster'});
+const g2 = new promClient.Gauge({name: 'puppeteer_cluster_workers_running_count', help: 'The total number of running workers for this Puppeteer cluster'});
+const g3 = new promClient.Gauge({name: 'puppeteer_cluster_queued_count', help: 'The total number of queued requests for this Puppeteer cluster'});
+const g4 = new promClient.Gauge({name: 'puppeteer_cluster_error_count', help: 'The total number of error events for this Puppeteer cluster'});
 
 (async () => {
     const cluster = await Cluster.launch({
@@ -8,11 +19,19 @@ const { Cluster } = require("puppeteer-cluster");
         maxConcurrency: 2,
     });
     await cluster.task(async ({ page, data: url }) => {
+        update_metrics()
         // make a screenshot
-        await page.goto(url);
-        const screen = await page.screenshot();
-        return screen;
+        har = await render_page(page, url);
+        return JSON.stringify(har);
     });
+
+    // Helper to update metrics of the cluster:
+    async function update_metrics() {
+        g1.set(cluster.allTargetCount);
+        g2.set(cluster.workersBusy.length);
+        g3.set(cluster.jobQueue.size());
+        g4.set(cluster.errorCount);
+    }
 
     // setup server
     app.get('/render', async function (req, res) {
@@ -21,10 +40,11 @@ const { Cluster } = require("puppeteer-cluster");
         }
         try {
             const screen = await cluster.execute(req.query.url);
+            update_metrics();
 
             // respond with image
             res.writeHead(200, {
-                'Content-Type': 'image/jpg',
+                'Content-Type': 'application/json',
                 'Content-Length': screen.length
             });
             res.end(screen);
