@@ -4,6 +4,7 @@
 
 const puppeteer = require('puppeteer');
 const fs = require('fs');
+const fsp = require("fs/promises");
 const { promisify } = require('util');
 const PuppeteerHar = require('./puppeteer-har');
 
@@ -124,29 +125,29 @@ async function render_page(page, url) {
 
   // Go the the page to capture:
   // See https://github.com/GoogleChrome/puppeteer/blob/master/docs/api.md#pagegotourl-options for definitions of networkidle0/2
-  console.log(`Navigating to ${url}`);
+  console.log(`Navigating to ${url}...`);
   try {
     // Main navigation
     await page.goto(url, { waitUntil: 'networkidle2' }); // Longer timeout set above
-    console.log('Waiting for delayed popups...');
+    console.log(`${url} - Waiting for delayed popups...`);
     await page.waitForTimeout(2000);
 
     // Look for any "I Accept" buttons
-    console.log('Looking for any modal buttons...');
+    console.log(`${url} - Looking for any modal buttons...`);
     await clickKnownModals(page);
 
     // Await for any more elements scrolling down prompted:
-    console.log('Waiting for any activity to die down...');
+    console.log(`${url} - Waiting for any activity to die down...`);
     // Usinf networkidle0 will usually hang as this event has already passed.
     // await page.waitForNavigation({ waitUntil: 'networkidle0' });
     await page.waitForTimeout(4000);
 
     // Now scroll down:
-    console.log('Scrolling down...');
+    console.log(`${url} - Scrolling down...`);
     await autoScroll(page);
   
     // Await for any more elements scrolling down prompted:
-    console.log('Waiting for any activity to die down...');
+    console.log(`${url} - Waiting for any activity to die down...`);
     await page.waitForTimeout(6000);
 
   } catch (e) {
@@ -154,7 +155,7 @@ async function render_page(page, url) {
   }
 
   // Render the result:
-  console.log('Rendering...');
+  console.log(`${url} - Rendering full page...`);
   // Full page:
   const image = await page.screenshot({ fullPage: true });
   //const image = await page.screenshot({ path: `${outPrefix}rendered-full.png`, fullPage: true });
@@ -196,21 +197,21 @@ async function render_page(page, url) {
   });
 
   // Scroll back to the top and take the viewport screenshot:
-  console.log('Scrolling back to top...');
+  console.log(`${url} - Scrolling back to top...`);
   await page.evaluate(async () => {
     window.scrollTo(0, 0);
   });
 
   // Await for any further activity following the scroll back:
-  console.log('Waiting for any activity to die down...');
+  console.log(`${url} - Waiting for any activity to die down...`);
   await page.waitForTimeout(1000);
 
   // Viewport only:
-  console.log('Rendering...');
-  const screenshot = await page.screenshot();
-  //const screenshot = await page.screenshot({ path: `${outPrefix}rendered.png` });
+  console.log(`${url} - Rendering viewport...`);
+  const screenshot = await page.screenshot({ type: 'jpeg', quality: 100 });
 
   // Print to PDF but use the screen CSS:
+  console.log(`${url} - Rendering PDF...`);
   await page.emulateMediaType('screen');
   const pdf = await page.pdf({
     //path: `${outPrefix}rendered-page.pdf`,
@@ -227,7 +228,7 @@ async function render_page(page, url) {
     // e.g. www.wired.co.uk, where it also over-crawls.
     try {
       // Switch to different user agent settings to attempt to ensure additional media downloaded:
-      console.log('Switching device settings...');
+      console.log(`${url} - Switching device settings...`);
       await page.emulate(devices['iPhone 6']);
       await page.emulate(devices['iPhone X landscape']);
       await page.emulate(devices['Nexus 6']);
@@ -252,10 +253,10 @@ async function render_page(page, url) {
       });
 
       // Await for any more elements the device switching prompted:
-      console.log('Waiting for any activity to die down...');
+      console.log(`${url} - Waiting for any activity to die down...`);
       await page.waitForTimeout(2000);
     } catch (e) {
-      console.error('We got an error, but lets continue and render what we get.\n', e);
+      console.error(`${url} - We got an error, but lets continue and render what we get.\n`, e);
     }
   }
 
@@ -267,37 +268,50 @@ async function render_page(page, url) {
       .map(e => e.name)
   ));
 
-  // Write out the url link summary:
-  //await promisify(fs.writeFile)(`${outPrefix}rendered.urls.json`, JSON.stringify(urls));
-
-  // Assemble the HAR:
+  // Assemble the results:
   const harStandard = await har.stop();
-  const harExtended = harStandard;
-  harExtended.log.pages[0].url = await page.url();
-  harExtended.log.pages[0].urls = urls;
-  harExtended.log.pages[0].map = urls.map;
-  // Also get the final set of cookies:
-  harExtended.log.pages[0].cookies = await page.cookies();
-  // And store the rendered forms
-  const b64Content = Buffer.from(html).toString('base64');
-  harExtended.log.pages[0].renderedContent = {
-    text: b64Content,
-    encoding: 'base64',
+  // Read in the package JSON to get the version:
+  const packageFileJSON = JSON.parse(await fsp.readFile("package.json"));
+  //
+  const harExtended = {
+    'software': `webrender-puppeteer ${packageFileJSON["version"]}`,
+    'har': harStandard,
+    'urls': urls,
+    'cookies': await page.cookies(),
   };
+  // And store the final/rendered forms:
+  const b64Content = Buffer.from(html).toString('base64');
+  harExtended.finalPage = {
+    content: b64Content,
+    encoding: 'base64',
+    contentType: 'text/html',
+  };
+
+  // TBA The full page with image map:
+  //harExtended.finalImageMap
+
+  // The viewport:
+  harExtended.renderedViewport = {
+    content: Buffer.from(screenshot).toString('base64'),
+    encoding: 'base64',
+    contentType: 'image/jpeg',
+  };
+  // The full page as image and PDF:
   const b64Image = Buffer.from(image).toString('base64');
   const b64Pdf = Buffer.from(pdf).toString('base64');
-  harExtended.log.pages[0].renderedElements = [{
+  harExtended.renderedElements = [{
     selector: ':root',
-    format: 'PNG',
+    contentType: 'image/png',
     content: b64Image,
     encoding: 'base64',
   }, {
     selector: ':root',
-    format: 'PDF',
+    contentType: 'application/pdf',
     content: b64Pdf,
     encoding: 'base64',
   }];
 
+  console.log(`${url} - Complete.`);
   return harExtended;
 }
 

@@ -1,5 +1,6 @@
 const app = require("express")();
 
+const e = require("express");
 const promBundle = require("express-prom-bundle");
 const promClient = require('prom-client');
 const metricsMiddleware = promBundle({includeMethod: true});
@@ -13,16 +14,25 @@ const g2 = new promClient.Gauge({name: 'puppeteer_cluster_workers_running_count'
 const g3 = new promClient.Gauge({name: 'puppeteer_cluster_queued_count', help: 'The total number of queued requests for this Puppeteer cluster'});
 const g4 = new promClient.Gauge({name: 'puppeteer_cluster_error_count', help: 'The total number of error events for this Puppeteer cluster'});
 
+// Get configuration:
+let maxConcurrency = 2;
+if ('PUPPETEER_CLUSTER_SIZE' in process.env) {
+    maxConcurrency = parseInt(process.env.PUPPETEER_CLUSTER_SIZE);
+}
+
 (async () => {
+    // Setup cluster:
+    console.log(`Starting puppeteer cluster with maxConcurrency = ${maxConcurrency}`)
     const cluster = await Cluster.launch({
         concurrency: Cluster.CONCURRENCY_CONTEXT,
-        maxConcurrency: 2,
+        maxConcurrency: maxConcurrency,
     });
+
     await cluster.task(async ({ page, data: url }) => {
         update_metrics()
         // make a screenshot
         har = await render_page(page, url);
-        return JSON.stringify(har);
+        return har;
     });
 
     // Helper to update metrics of the cluster:
@@ -39,15 +49,27 @@ const g4 = new promClient.Gauge({name: 'puppeteer_cluster_error_count', help: 'T
             return res.end('Please specify url like this: ?url=https://example.com');
         }
         try {
-            const screen = await cluster.execute(req.query.url);
+            const har = await cluster.execute(req.query.url);
             update_metrics();
 
-            // respond with image
-            res.writeHead(200, {
-                'Content-Type': 'application/json',
-                'Content-Length': screen.length
-            });
-            res.end(screen);
+            if (req.query.show_screenshot) {
+                // respond with image:
+                screen = new Buffer.from( har.renderedViewport.content, 'base64' );
+                res.writeHead(200, {
+                    'Content-Type': har.renderedViewport.contentType,
+                    'Content-Length': screen.length
+                });
+                res.end(screen);
+            } else {
+                // respond with JSON:
+                jsonStr = JSON.stringify(har);
+                res.writeHead(200, {
+                    'Content-Type': 'application/json',
+                    'Content-Length': jsonStr.length
+                });
+                res.end(jsonStr);
+            }
+
         } catch (err) {
             // catch error
             res.end('Error: ' + err.message);
