@@ -25,6 +25,7 @@ RUN apt-get update \
 # ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD true
 
 # Install all dependencies so e.g. Puppeteer is available in the container.
+WORKDIR /app
 ADD package.json .
 RUN npm install \
     # Add user so we don't need --no-sandbox.
@@ -32,10 +33,9 @@ RUN npm install \
     && groupadd -r pptruser && useradd -r -g pptruser -G audio,video pptruser \
     && mkdir -p /home/pptruser/Downloads \
     && chown -R pptruser:pptruser /home/pptruser \
-    && chown -R pptruser:pptruser /node_modules
+    && chown -R pptruser:pptruser /app/node_modules
 
 # ADDITIONAL root user changes needed for this project:
-RUN npm i chrome-har
 RUN mkdir /output && chown pptruser:pptruser /output
 # END ADDITIONAL
 
@@ -43,7 +43,7 @@ RUN mkdir /output && chown pptruser:pptruser /output
 USER pptruser
 
 # Add specific code for rendering:
-ADD *.js .
+ADD *.js /app
 
 # Set up volume for outputs:
 VOLUME /output
