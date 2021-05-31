@@ -20,12 +20,39 @@ if ('PUPPETEER_CLUSTER_SIZE' in process.env) {
     maxConcurrency = parseInt(process.env.PUPPETEER_CLUSTER_SIZE);
 }
 
+  // Set up the browser in the required configuration:
+  const browserArgs = {
+    ignoreHTTPSErrors: true,
+    args: [
+      '--disk-cache-size=0',
+      '--no-sandbox',
+      '--ignore-certificate-errors',
+      '--disable-dev-shm-usage',
+      "--no-xshm", // needed for Chrome >80 (check if puppeteer adds automatically)
+      "--disable-background-media-suspend",
+      "--autoplay-policy=no-user-gesture-required",
+      "--disable-features=IsolateOrigins,site-per-process",
+      "--disable-popup-blocking",
+      "--disable-backgrounding-occluded-windows",
+    ],
+  };
+  // Add proxy configuration if supplied:
+  if (process.env.HTTP_PROXY) {
+    proxy_url = process.env.HTTP_PROXY;
+    // Remove any trailing slash:
+    proxy_url = proxy_url.replace(/\/$/,'')
+    browserArgs.args.push(`--proxy-server=${proxy_url}`);
+  }
+  console.log('Browser arguments: ', browserArgs);
+
+
 (async () => {
     // Setup cluster:
     console.log(`Starting puppeteer cluster with maxConcurrency = ${maxConcurrency}`)
     const cluster = await Cluster.launch({
         concurrency: Cluster.CONCURRENCY_CONTEXT,
         maxConcurrency: maxConcurrency,
+        puppeteerOptions: browserArgs,
         timeout: 5*60*1000, // Large 5min timeout by default
     });
 
@@ -77,7 +104,8 @@ if ('PUPPETEER_CLUSTER_SIZE' in process.env) {
         }
     });
 
-    app.listen(3000, function () {
-        console.log('Screenshot server listening on port 3000.');
+    const port = process.env.PORT || 3000;
+    app.listen(port, function () {
+        console.log(`Screenshot server listening on port ${port}.`);
     });
 })();
