@@ -24,8 +24,9 @@ RUN apt-get update \
 #     browser.launch({executablePath: 'google-chrome-unstable'})
 # ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD true
 
-# Install puppeteer so it's available in the container.
-RUN npm i puppeteer \
+# Install all dependencies so e.g. Puppeteer is available in the container.
+ADD package.json .
+RUN npm install \
     # Add user so we don't need --no-sandbox.
     # same layer as npm install to keep re-chowned files from using up several hundred MBs more space
     && groupadd -r pptruser && useradd -r -g pptruser -G audio,video pptruser \
@@ -47,4 +48,4 @@ ADD *.js .
 # Set up volume for outputs:
 VOLUME /output
 
-CMD ["node", "cmd.js"]
+CMD ["node", "server.js"]
