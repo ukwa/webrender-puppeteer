@@ -26,6 +26,7 @@ if ('PUPPETEER_CLUSTER_SIZE' in process.env) {
     const cluster = await Cluster.launch({
         concurrency: Cluster.CONCURRENCY_CONTEXT,
         maxConcurrency: maxConcurrency,
+        timeout: 5*60*1000, // Large 5min timeout by default
     });
 
     await cluster.task(async ({ page, data: url }) => {
