@@ -27,7 +27,7 @@ RUN apt-get update \
 
 # Install all dependencies so e.g. Puppeteer is available in the container.
 WORKDIR /app
-ADD package.json .
+COPY package.json .
 RUN npm install \
     # Add user so we don't need --no-sandbox.
     # same layer as npm install to keep re-chowned files from using up several hundred MBs more space
@@ -44,7 +44,7 @@ RUN mkdir /output && chown pptruser:pptruser /output
 USER pptruser
 
 # Add specific code for rendering:
-ADD *.js /app
+COPY *.js /app/
 
 # Set up volume for outputs:
 VOLUME /output
