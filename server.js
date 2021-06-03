@@ -53,14 +53,20 @@ const warcproxProxy = process.env.WARCPROX_PROXY || '';
     // Setup cluster:
     console.log(`Starting puppeteer cluster with maxConcurrency = ${maxConcurrency}`)
     const cluster = await Cluster.launch({
-        concurrency: Cluster.CONCURRENCY_CONTEXT,
+        concurrency: Cluster.CONCURRENCY_BROWSER, // < required to ensure extra headers are set properly per URL/task.
         maxConcurrency: maxConcurrency,
         puppeteerOptions: browserArgs,
         timeout: 5*60*1000, // Large 5min timeout by default
     });
 
-    function post_to_warcprox(uri, data, contentType, warcType='resource', location=null, extraHeaders=[]) {
-      console.log(`Attempting to POST data for ${uri}`);
+    // Event handler to be called in case of problems
+    cluster.on('taskerror', (err, data) => {
+      console.log(`Error crawling ${data}: ${err.message}`);
+    });
+
+    async function post_to_warcprox(uri, data, contentType, 
+        warcType, location, warcPrefix) {
+      console.log(`Attempting to POST data for ${uri} with warcPrefix ${warcPrefix}`);
         const options = {
             host: proxy_host,
             port: proxy_port,
@@ -76,6 +82,11 @@ const warcproxProxy = process.env.WARCPROX_PROXY || '';
 
         if( location ) {
           options.headers['Location'] = location;
+        }
+
+        if( warcPrefix ) {
+          options.headers['Warcprox-Meta'] = JSON.stringify( { 'warc-prefix' : warcPrefix } );
+          console.log(`ADDED WARCPROX HEADER. ${warcPrefix}`);
         }
           
           const req = http.request(options, (res) => {
@@ -99,41 +110,65 @@ const warcproxProxy = process.env.WARCPROX_PROXY || '';
           req.end();
     }
 
-    await cluster.task(async ({ page, data: url }) => {
-        update_metrics()
+    await cluster.task(async ({ page, data }) => {
+        const url = data.url;
+        const warcPrefix = data.warcPrefix;
+        await update_metrics()
         // Render the page
-        har = await render_page(page, url);
+        console.log(`${url} cluster.task running render with warcPrefix=${warcPrefix}`);
+
+        // Set up any specified custom headers:
+        const extraHeaders = {};
+        // Add Memento Datetime header if needed:
+        // e.g. Accept-Datetime: Thu, 31 May 2007 20:35:00 GMT
+        if ('MEMENTO_ACCEPT_DATETIME' in process.env) {
+          extraHeaders['Accept-Datetime'] = process.env.MEMENTO_ACCEPT_DATETIME;
+        }
+        // Add a warc-prefix as JSON in a Warcprox-Meta: header
+        if (warcPrefix) {
+          extraHeaders['Warcprox-Meta'] = JSON.stringify( { 'warc-prefix' : warcPrefix } );
+        }
+        
+        //await page.setUserAgent("User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4298.0 Safari/537.36");
+        har = await render_page(page, url, extraHeaders);
+
         // POST records to warcprox if available:
         if ( warcproxProxy ) {
           if ( 'url' in har.urls ) {
-            console.log("Render appears to have worked. POSTing results to warcprox..."); 
             const finalUrl = har.urls.url;
+            console.log(`Render appears to have worked (finalUrl = ${finalUrl}). POSTing results to warcprox...`); 
             // DOM
-            post_to_warcprox(
+            await post_to_warcprox(
               `onreadydom:${url}`,
               new Buffer.from( har.finalPage.content, 'base64' ),
               har.finalPage.contentType,
-              location=finalUrl,
+              'resource',
+              finalUrl,
+              warcPrefix,
             );
             // HAR
-            post_to_warcprox(
+            await post_to_warcprox(
               `har:${url}`,
               JSON.stringify(har.har),
               'application/json',
-              location=finalUrl,
+              'resource',
+              finalUrl,
+              warcPrefix,
             );
             // Rendered Elements:
-            har.renderedElements.forEach(function(relem) {
+            await har.renderedElements.forEach( async function(relem) {
               console.log(` - ${relem.selector} - ${relem.contentType}`);
               var uriPrefix = 'screenshot';
               if( relem.contentType == 'application/pdf') {
                 uriPrefix = 'pdf';
               }
-              post_to_warcprox(
+              await post_to_warcprox(
                 `${uriPrefix}:${url}#xpointer(${relem.selector})`,
                 new Buffer.from( relem.content, 'base64' ),
                 relem.contentType,
-                location=finalUrl,
+                'resource',
+                finalUrl,
+                warcPrefix,
               );
             });
           }
@@ -155,8 +190,9 @@ const warcproxProxy = process.env.WARCPROX_PROXY || '';
             return res.status(400).end('Please specify url like this: ?url=https://example.com\n');
         }
         try {
-            const har = await cluster.execute(req.query.url);
-            update_metrics();
+            const warcPrefix = req.query.warc_prefix || null;
+            const har = await cluster.execute({ url: req.query.url, warcPrefix: warcPrefix });
+            await update_metrics();
 
             if (req.query.show_screenshot) {
                 // respond with image:
@@ -178,6 +214,7 @@ const warcproxProxy = process.env.WARCPROX_PROXY || '';
 
         } catch (err) {
             // catch error
+            console.error(err.stack);
             res.end('Error: ' + err.message);
         }
     });

@@ -43,7 +43,7 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
     // In rare cases ( https://covid19ukmap.com/ ) this can crash out, so protect against exceptions:
     try {
       await client.send('Fetch.enable');
-      console.log('Sent Fetch.enable.');
+      console.log(`Sent Fetch.enable, extraHeaders = ${JSON.stringify(extraHeaders)}`);
     } catch(error) {
       console.log('Exception when sending Fetch.enable: ', error.message);
     }
@@ -71,13 +71,25 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
           headers: headersArray(request.headers),
         });
       } catch(error) {
-        console.log('Exception when seding Fetch.continueRequest: ', error.message);
+        console.log('Exception when sending Fetch.continueRequest: ', error.message);
       }
     });
   }
 }
 
-async function render_page(page, url) {
+async function render_page(page, url, extraHeaders) {
+  // Add hook to track activity and modify headers in all contexts (pages, workers, etc.):
+  // Note that extraHTTPHeaders means the browser sends headers like:
+  //   Access-Control-Request-Headers: warcprox-meta
+  // which warcprox doesn't block, and confuses the heck out of e.g. Twitter.
+  const interceptor = async (target) => {
+    await interceptAllTrafficForPageUsingFetch(target, extraHeaders);
+  };
+  await interceptor(await page.target());
+  await page.browser().on('targetcreated', interceptor );
+  console.log(`Set up interception for ${url} and extraHeaders ${JSON.stringify(extraHeaders)}.`);
+
+
   // Set up some logging of any errors:
   page.on('error', err=> {
     console.log('error happen at the page: ', err);
@@ -118,6 +130,9 @@ async function render_page(page, url) {
     const userAgent = await browser.userAgent();
     page.setUserAgent(`${userAgent} ${process.env.USER_AGENT_ADDITIONAL}`);
   }
+
+  await page.setUserAgent('Chrome/91.0.4469.0');
+ // await page.setUserAgent('Chrome/88.0.4298.0');
 
   // Record requests/responses in a standard format:
   const har = new PuppeteerHar(page);
@@ -311,6 +326,9 @@ async function render_page(page, url) {
     encoding: 'base64',
   }];
 
+  // Clean out the event listeners:
+  await page.browser().removeListener('targetcreated', interceptor);
+
   console.log(`${url} - Complete.`);
   return harExtended;
 }
@@ -354,17 +372,12 @@ async function render(url) {
   console.log('Browser arguments: ', browserArgs);
   const browser = await puppeteer.launch(browserArgs);
 
-  // Add hook to track activity and modify headers in all contexts (pages, workers, etc.):
-  browser.on('targetcreated', async (target) => {
-    await interceptAllTrafficForPageUsingFetch(target, extraHeaders);
-  });
-
   // Set up a clean 'incognito' context and page:
   const context = await browser.createIncognitoBrowserContext();
   const page = await context.newPage();
 
   // Run the page-level rendering process:
-  harExtended = render_page(page, url);
+  harExtended = render_page(page, url, extraHeaders);
 
   // Output prefix:
   let outPrefix = '/output/';
