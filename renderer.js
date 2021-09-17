@@ -7,6 +7,9 @@ const fs = require('fs');
 const fsp = require("fs/promises");
 const { promisify } = require('util');
 const PuppeteerHar = require('./puppeteer-har');
+const WARCWriter = require('./warcwriter');
+
+ww = new WARCWriter(".", "TEST");
 
 const { devices } = puppeteer;
 
@@ -296,6 +299,8 @@ async function render_page(page, url) {
     encoding: 'base64',
     contentType: 'image/jpeg',
   };
+  console.log(`WWAAA ${screenshot.constructor}`);
+  await ww.writeRenderedImage(url, 'image/jpeg', screenshot);
   // The full page as image and PDF:
   const b64Image = Buffer.from(image).toString('base64');
   const b64Pdf = Buffer.from(pdf).toString('base64');

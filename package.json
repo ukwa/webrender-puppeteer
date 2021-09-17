@@ -24,6 +24,8 @@
     "prom-client": "^13.1.0",
     "puppeteer": "^5.5.0",
     "puppeteer-cluster": "^0.22.0",
-    "puppeteer-har": "^1.1.2"
+    "puppeteer-har": "^1.1.2",
+    "rotating-file-stream": "^2.1.5",
+    "warcio": "^1.4.8"
   }
 }
