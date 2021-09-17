@@ -2,6 +2,7 @@
 /* eslint-disable no-console */
 // 'use strict' not required for modules?;
 
+const fs = require('fs');
 const rfs = require("rotating-file-stream");
 const { WARCRecord, WARCSerializer } = require("warcio");
 
@@ -28,7 +29,7 @@ class WARCWriter {
           var hour = pad(time.getHours());
           var minute = pad(time.getMinutes());
         
-          return `${this.outputPath}/${this.warcPrefix}-${month}${day}-${hour}${minute}-${index}-output.warc.gz`;
+          return `${this.outputPath}/${this.warcPrefix}-${month}${day}-${hour}${minute}-${index}-output.warc.gz.open`;
         };
         
         const stream = rfs.createStream(generator, {
@@ -38,14 +39,21 @@ class WARCWriter {
         });
 
         stream.on('open', async (filename) => {
-            // First, create a warcinfo record
+            // Slice the .open off the end:
+            const warcFilename = filename.slice(0, -5);
+            // TODO use just the file name, strip the path:
  
-            const warcinfo =  await WARCRecord.createWARCInfo({filename, warcVersion}, warcInfo);
+            const warcinfo =  await WARCRecord.createWARCInfo({filename: warcFilename, warcVersion}, warcInfo);
 
             const serializedWARCInfo =  await WARCSerializer.serialize(warcinfo, {gzip: true});
 
             this.stream.write(serializedWARCInfo);
 
+        });
+
+        stream.on('rotated', (filename) => {
+            console.log(`Log file rotated event, filename = ${filename}, rename without .open.`);
+            fs.renameSync(filename, filename.slice(0, -5));
         });
 
         // Store ref in class scope:
