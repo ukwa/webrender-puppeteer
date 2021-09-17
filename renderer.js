@@ -289,6 +289,7 @@ async function render_page(page, url) {
     encoding: 'base64',
     contentType: 'text/html',
   };
+  await ww.writeRenderedImage(url, 'text/html', new TextEncoder().encode(html));
 
   // TBA The full page with image map:
   //harExtended.finalImageMap
@@ -299,9 +300,10 @@ async function render_page(page, url) {
     encoding: 'base64',
     contentType: 'image/jpeg',
   };
-  console.log(`WWAAA ${screenshot.constructor}`);
   await ww.writeRenderedImage(url, 'image/jpeg', screenshot);
   // The full page as image and PDF:
+  await ww.writeRenderedImage(url, 'image/png', image);
+  await ww.writeRenderedImage(url, 'application/pdf', pdf);
   const b64Image = Buffer.from(image).toString('base64');
   const b64Pdf = Buffer.from(pdf).toString('base64');
   harExtended.renderedElements = [{
