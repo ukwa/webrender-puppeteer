@@ -292,6 +292,8 @@ async function render_page(page, url, extraHeaders) {
 
   // Assemble the results:
   const harStandard = await har.stop();
+  await ww.writeRenderedImage(`har:${url}`, 'application/json', new TextEncoder().encode(JSON.stringify(harStandard)));
+
   // Read in the package JSON to get the version:
   const packageFileJSON = JSON.parse(await fsp.readFile("package.json"));
   //
@@ -308,7 +310,7 @@ async function render_page(page, url, extraHeaders) {
     encoding: 'base64',
     contentType: 'text/html',
   };
-  await ww.writeRenderedImage(url, 'text/html', new TextEncoder().encode(html));
+  await ww.writeRenderedImage(`onreadydom:${url}`, 'text/html', new TextEncoder().encode(html));
 
   // TBA The full page with image map:
   //harExtended.finalImageMap
@@ -319,10 +321,11 @@ async function render_page(page, url, extraHeaders) {
     encoding: 'base64',
     contentType: 'image/jpeg',
   };
-  await ww.writeRenderedImage(url, 'image/jpeg', screenshot);
+  //await ww.writeRenderedImage(`viewport:${url}`, 'image/jpeg', screenshot);
+  // thumbnail, imagemap
   // The full page as image and PDF:
-  await ww.writeRenderedImage(url, 'image/png', image);
-  await ww.writeRenderedImage(url, 'application/pdf', pdf);
+  await ww.writeRenderedImage(`screenshot:${url}`, 'image/png', image);
+  await ww.writeRenderedImage(`pdf:${url}`, 'application/pdf', pdf);
   const b64Image = Buffer.from(image).toString('base64');
   const b64Pdf = Buffer.from(pdf).toString('base64');
   harExtended.renderedElements = [{

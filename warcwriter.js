@@ -10,8 +10,8 @@ const warcInfo = {
     "software": "warcio.js in node"
 }
 
-const MAX_WARC_SIZE_B = 10*1024;
-//const MAX_WARC_PERIOD_MS = 24*60*60*1000;
+const MAX_WARC_SIZE_B = 1000*1000*1000; // 1GB 
+//const MAX_WARC_PERIOD_MS = 24*60*60*1000; // 24 hrs
 const MAX_WARC_PERIOD_MS = 60*1000;
 
 class WARCWriter {
@@ -108,7 +108,8 @@ class WARCWriter {
         const date = new Date().toISOString();
         const type = "resource";
         const warcHeaders = {
-            "Content-Type": contentType
+            "Content-Type": contentType,
+            "Content-Length": payload.length
         };
 
         console.log(`writeRenderedImage ${url} - ${contentType} - ${typeof payload}`);
@@ -122,6 +123,19 @@ class WARCWriter {
         //static create({url, date, type, warcHeaders = {}, filename = "",
         //httpHeaders = {}, statusline = "HTTP/1.1 200 OK",
         //warcVersion = WARC_1_0, keepHeadersCase = true, refersToUrl = undefined, refersToDate = undefined} = {}, reader) {
+
+/*
+WARC/1.0
+WARC-Type: resource
+WARC-Record-ID: <urn:uuid:2f3d9696-506a-4987-8610-6efd319d5aa3>
+WARC-Date: 2021-09-11T22:26:51Z
+WARC-Target-URI: screenshot:http://crawl-test-site.webarchive.org.uk/
+Content-Type: image/png
+Content-Length: 86966
+WARC-Block-Digest: sha1:WGZXBS7NYMDJZRCNGI3JVDLN3IX7NYHK
+WARC-Payload-Digest: sha1:WGZXBS7NYMDJZRCNGI3JVDLN3IX7NYHK
+
+*/
 
         await this._write(record);
     }
