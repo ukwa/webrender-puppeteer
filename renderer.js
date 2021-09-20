@@ -458,6 +458,24 @@ async function clickButton(page, buttonText) {
   }, buttonText.toLowerCase());
 }
 
+/**
+ * Create something to quickly check WARC records.
+
+* Add unique process ID,
+var crypto = require("crypto");
+var id = crypto.randomBytes(20).toString('hex');
+// "bb5dc8842ca31d4603d6aa11448d1654"
+
+* and incrementing integer padded,
+https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/padStart
+
+
+ */
+
+/**
+ * 
+ * @param {*} page 
+ */
 async function clickKnownModals(page) {
   try {
     // Press escape for transient popups:

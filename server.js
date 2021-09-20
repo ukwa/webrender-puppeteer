@@ -199,17 +199,18 @@ const warcproxProxy = process.env.WARCPROX_PROXY || '';
                 screen = new Buffer.from( har.renderedViewport.content, 'base64' );
                 res.writeHead(200, {
                     'Content-Type': har.renderedViewport.contentType,
-                    'Content-Length': screen.length
+                    'Content-Length': Buffer.byteLength(screen)
                 });
                 res.end(screen);
             } else {
                 // respond with JSON:
-                jsonStr = JSON.stringify(har);
+                jsonStr = JSON.stringify(har, null, 2);
                 res.writeHead(200, {
                     'Content-Type': 'application/json',
-                    'Content-Length': jsonStr.length
+                    'Content-Length': Buffer.byteLength(jsonStr)
                 });
-                res.end(jsonStr);
+                res.write(jsonStr);
+                res.end();
             }
 
         } catch (err) {

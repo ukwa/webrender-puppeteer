@@ -90,7 +90,7 @@ class WARCWriter {
         //console.log(record);
         const serializedRecord = await WARCSerializer.serialize(record, {gzip: true});
         this.stream.write(serializedRecord);
-        this.written += serializedRecord.length;
+        this.written += Buffer.byteLength(serializedRecord);
         console.log(`Written ${this.written}...`);
     }
 
@@ -109,7 +109,7 @@ class WARCWriter {
         const type = "resource";
         const warcHeaders = {
             "Content-Type": contentType,
-            "Content-Length": payload.length
+            "Content-Length": Buffer.byteLength(payload)
         };
 
         console.log(`writeRenderedImage ${url} - ${contentType} - ${typeof payload}`);
