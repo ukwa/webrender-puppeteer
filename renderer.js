@@ -218,19 +218,9 @@ async function render_page(page, url, extraHeaders) {
     return clickables;
   });
 
-  // Scroll back to the top and take the viewport screenshot:
-  console.log(`${url} - Scrolling back to top...`);
-  await page.evaluate(async () => {
-    window.scrollTo(0, 0);
-  });
-
-  // Await for any further activity following the scroll back:
-  console.log(`${url} - Waiting for any activity to die down...`);
-  await page.waitForTimeout(1000);
-
-  // Viewport only:
-  console.log(`${url} - Rendering viewport...`);
-  const screenshot = await page.screenshot({ type: 'jpeg', quality: 100 });
+  // Also get a JPEG for the imagemap:
+  console.log(`${url} - Rendering screenshot as JPEG...`);
+  const imageJpeg = await page.screenshot({ type: 'jpeg', quality: 100, fullPage: true });
 
   // Print to PDF but use the screen CSS:
   console.log(`${url} - Rendering PDF...`);
@@ -314,31 +304,14 @@ async function render_page(page, url, extraHeaders) {
 
   // TBA The full page with image map:
   //harExtended.finalImageMap
+  const title = harStandard['log']['pages'][0]['title'];
+  const imageMapHtml = _toImageMap(url, title, imageJpeg, urls.map);
+  await ww.writeRenderedImage(`imagemap:${url}`, 'text/html', new TextEncoder().encode(imageMapHtml));
 
-  // The viewport:
-  harExtended.renderedViewport = {
-    content: Buffer.from(screenshot).toString('base64'),
-    encoding: 'base64',
-    contentType: 'image/jpeg',
-  };
-  //await ww.writeRenderedImage(`viewport:${url}`, 'image/jpeg', screenshot);
   // thumbnail, imagemap
   // The full page as image and PDF:
   await ww.writeRenderedImage(`screenshot:${url}`, 'image/png', image);
   await ww.writeRenderedImage(`pdf:${url}`, 'application/pdf', pdf);
-  const b64Image = Buffer.from(image).toString('base64');
-  const b64Pdf = Buffer.from(pdf).toString('base64');
-  harExtended.renderedElements = [{
-    selector: ':root',
-    contentType: 'image/png',
-    content: b64Image,
-    encoding: 'base64',
-  }, {
-    selector: ':root',
-    contentType: 'application/pdf',
-    content: b64Pdf,
-    encoding: 'base64',
-  }];
 
   // Clean out the event listeners:
   await page.browser().removeListener('targetcreated', interceptor);
@@ -346,6 +319,40 @@ async function render_page(page, url, extraHeaders) {
   console.log(`${url} - Complete.`);
   return harExtended;
 }
+
+// HTML5: https://dev.w3.org/html5/spec-preview/image-maps.html
+// <img src="shapes.png" usemap="#shapes"
+//      alt="Four shapes are available: a red hollow box, a green circle, a blue triangle, and a yellow four-pointed star.">
+// <map name="shapes">
+//  <area shape=rect coords="50,50,100,100"> <!-- the hole in the red box -->
+//  <area shape=rect coords="25,25,125,125" href="red.html" alt="Red box.">
+//  <area shape=circle coords="200,75,50" href="green.html" alt="Green circle.">
+//  <area shape=poly coords="325,25,262,125,388,125" href="blue.html" alt="Blue triangle.">
+//  <area shape=poly coords="450,25,435,60,400,75,435,90,450,125,465,90,500,75,465,60"
+//        href="yellow.html" alt="Yellow star.">
+// </map>
+// <img alt="Embedded Image" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADIA..." />
+function _toImageMap(url, title, imageJpeg, map) {
+    html = `<html><head><title>${title} [Static version of ${url}]</title>\n</head>\n<body style="margin: 0;">\n`
+    const buf = Buffer.from(imageJpeg);
+    html = html + `<img src="data:image/jpeg;base64,${buf.toString('base64')}" usemap="#shapes" alt="${title}">\n`
+    html = html + '<map name="shapes">\n'
+    for (box of map) {
+      if('href' in box) {
+          x1 = box['location']['left']
+          y1 = box['location']['top']
+          x2 = x1 + box['location']['width']
+          y2 = y1 + box['location']['height']
+          html = html + `<area shape=rect coords="${x1},${y1},${x2},${y2}" href="${box['href']}">\n`
+      } else {
+          console.log("_toImageMap: Skipping box with no 'href': %s" % box)
+      }
+    }
+    html = html + '</map>\n'
+    html = html + "</body>\n</html>\n"
+    return html
+}
+
 
 async function render(url) {
   // Set up any specified custom headers:
@@ -476,6 +483,7 @@ async function clickKnownModals(page) {
     await clickButton(page, 'I Agree');
     await clickButton(page, 'AGREE');
     await clickButton(page, 'Allow all');
+    await clickButton(page, 'Yes, I\'m happy');
 
   } catch (e) {
     console.error('A page.evaluate failed, perhaps due to a navigation event.\n', e);
