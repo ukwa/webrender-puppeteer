@@ -9,7 +9,9 @@ const { promisify } = require('util');
 const PuppeteerHar = require('./puppeteer-har');
 const WARCWriter = require('./warcwriter');
 
-ww = new WARCWriter(".", "TEST");
+const WARC_OUTPUT_PATH = process.env.WARC_OUTPUT_PATH || '.';
+const WARC_PREFIX = process.env.WARC_PREFIX || 'WEBRENDERED';
+const ww = new WARCWriter(WARC_OUTPUT_PATH, WARC_PREFIX);
 
 const { devices } = puppeteer;
 
@@ -236,8 +238,6 @@ async function render_page(page, url, extraHeaders) {
 
   // After rendering main view, attempt to switch between devices to grab alternative media
   if (switchDevices) {
-    // TODO Debug why this is reaaallly sloooow on some sites,
-    // e.g. www.wired.co.uk, where it also over-crawls.
     try {
       // Switch to different user agent settings to attempt to ensure additional media downloaded:
       console.log(`${url} - Switching device settings...`);
@@ -282,11 +282,20 @@ async function render_page(page, url, extraHeaders) {
 
   // Assemble the results:
   const harStandard = await har.stop();
-  await ww.writeRenderedImage(`har:${url}`, 'application/json', new TextEncoder().encode(JSON.stringify(harStandard)));
 
   // Read in the package JSON to get the version:
   const packageFileJSON = JSON.parse(await fsp.readFile("package.json"));
-  //
+
+  // Override creator info:
+  harStandard['log']['creator'] = {
+    'name': 'webrender-puppeteer',
+    'version': packageFileJSON["version"],
+    'comment': 'https://github.com/ukwa/webrender-puppeteer'
+  }
+  // And write to WARC
+  await ww.writeRenderedImage(`har:${url}`, 'application/json', new TextEncoder().encode(JSON.stringify(harStandard)));
+
+  // Build extended/wrapper HAR:
   const harExtended = {
     'software': `webrender-puppeteer ${packageFileJSON["version"]}`,
     'har': harStandard,
@@ -457,20 +466,6 @@ async function clickButton(page, buttonText) {
     }
   }, buttonText.toLowerCase());
 }
-
-/**
- * Create something to quickly check WARC records.
-
-* Add unique process ID,
-var crypto = require("crypto");
-var id = crypto.randomBytes(20).toString('hex');
-// "bb5dc8842ca31d4603d6aa11448d1654"
-
-* and incrementing integer padded,
-https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/padStart
-
-
- */
 
 /**
  * 

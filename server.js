@@ -18,7 +18,6 @@ const g4 = new promClient.Gauge({name: 'puppeteer_cluster_error_count', help: 'T
 
 // Get configuration:
 const maxConcurrency = parseInt(process.env.PUPPETEER_CLUSTER_SIZE || '2', 10);
-const warcproxProxy = process.env.WARCPROX_PROXY || '';
 
   // Set up the browser in the required configuration:
   const browserArgs = {
@@ -64,52 +63,6 @@ const warcproxProxy = process.env.WARCPROX_PROXY || '';
       console.log(`Error crawling ${data}: ${err.message}`);
     });
 
-    async function post_to_warcprox(uri, data, contentType, 
-        warcType, location, warcPrefix) {
-      console.log(`Attempting to POST data for ${uri} with warcPrefix ${warcPrefix}`);
-        const options = {
-            host: proxy_host,
-            port: proxy_port,
-            path: uri,
-            method: 'WARCPROX_WRITE_RECORD',
-            headers: {
-              'Content-Type': contentType,
-              'WARC-Type': warcType,
-              'Host': 'ignored.com',
-              'Content-Length': Buffer.byteLength(data)
-            }
-        };
-
-        if( location ) {
-          options.headers['Location'] = location;
-        }
-
-        if( warcPrefix ) {
-          options.headers['Warcprox-Meta'] = JSON.stringify( { 'warc-prefix' : warcPrefix } );
-          console.log(`ADDED WARCPROX HEADER. ${warcPrefix}`);
-        }
-          
-          const req = http.request(options, (res) => {
-            console.log(`STATUS: ${res.statusCode}`);
-            console.log(`HEADERS: ${JSON.stringify(res.headers)}`);
-            res.setEncoding('utf8');
-            res.on('data', (chunk) => {
-              console.log(`BODY: ${chunk}`);
-            });
-            res.on('end', () => {
-              console.log('No more data in response.');
-            });
-          });
-          
-          req.on('error', (e) => {
-            console.error(`problem with request: ${e.message}`);
-          });
-          
-          // Write data to request body
-          req.write(data);
-          req.end();
-    }
-
     await cluster.task(async ({ page, data }) => {
         const url = data.url;
         const warcPrefix = data.warcPrefix;
@@ -132,47 +85,6 @@ const warcproxProxy = process.env.WARCPROX_PROXY || '';
         //await page.setUserAgent("User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4298.0 Safari/537.36");
         har = await render_page(page, url, extraHeaders);
 
-        // POST records to warcprox if available:
-        if ( warcproxProxy ) {
-          if ( 'url' in har.urls ) {
-            const finalUrl = har.urls.url;
-            console.log(`Render appears to have worked (finalUrl = ${finalUrl}). POSTing results to warcprox...`); 
-            // DOM
-            await post_to_warcprox(
-              `onreadydom:${url}`,
-              new Buffer.from( har.finalPage.content, 'base64' ),
-              har.finalPage.contentType,
-              'resource',
-              finalUrl,
-              warcPrefix,
-            );
-            // HAR
-            await post_to_warcprox(
-              `har:${url}`,
-              JSON.stringify(har.har),
-              'application/json',
-              'resource',
-              finalUrl,
-              warcPrefix,
-            );
-            // Rendered Elements:
-            await har.renderedElements.forEach( async function(relem) {
-              console.log(` - ${relem.selector} - ${relem.contentType}`);
-              var uriPrefix = 'screenshot';
-              if( relem.contentType == 'application/pdf') {
-                uriPrefix = 'pdf';
-              }
-              await post_to_warcprox(
-                `${uriPrefix}:${url}#xpointer(${relem.selector})`,
-                new Buffer.from( relem.content, 'base64' ),
-                relem.contentType,
-                'resource',
-                finalUrl,
-                warcPrefix,
-              );
-            });
-          }
-        }
         return har;
     });
 
@@ -204,13 +116,7 @@ const warcproxProxy = process.env.WARCPROX_PROXY || '';
                 res.end(screen);
             } else {
                 // respond with JSON:
-                jsonStr = JSON.stringify(har, null, 2);
-                res.writeHead(200, {
-                    'Content-Type': 'application/json',
-                    'Content-Length': Buffer.byteLength(jsonStr)
-                });
-                res.write(jsonStr);
-                res.end();
+                res.json(har);
             }
 
         } catch (err) {

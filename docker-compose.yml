@@ -12,12 +12,15 @@ services:
     environment: # DOCKER_HOST could be used to run rendering on a dedicated service.
       - "LC_ALL=en_US.utf8"
       - "HTTP_PROXY=http://warcprox:8000/"
-      - "WARCPROX_PROXY=true"
       - "PORT=8010"
       - "NODE_ENV=development"
       - "PUPPETEER_CLUSTER_SIZE=2"
+      - "WARC_OUTPUT_PATH=/heritrix/wren"
+      - "WARC_PREFIX=BL-WEBRENDERED"
     ports:
       - "8010:8010"
+    volumes:
+      - "./output:/heritrix/wren"
 
   # WARC Proxy, with de-duplication disabled and a rapid rollover:
   warcprox:
