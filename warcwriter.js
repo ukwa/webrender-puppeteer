@@ -3,7 +3,6 @@
 // 'use strict' not required for modules?;
 
 const fs = require('fs');
-const { runInThisContext } = require('vm');
 const { WARCRecord, WARCSerializer } = require("warcio");
 
 const warcVersion = "WARC/1.1";

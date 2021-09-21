@@ -403,8 +403,8 @@ async function render(url) {
   if (process.env.HTTP_PROXY) {
     proxy_url = process.env.HTTP_PROXY;
     // Remove any trailing slash:
-    proxy_url = proxy_url.replace(/\/$/,'')
-    browserArgs.args.push(`--proxy-server=${proxy_url}`);
+    proxy_url = proxy_url.replace(/\/$/,'');
+    browserArgs.args.unshift(`--proxy-server=${proxy_url}`);
   }
   console.log('Browser arguments: ', browserArgs);
   const browser = await puppeteer.launch(browserArgs);

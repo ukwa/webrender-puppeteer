@@ -12,6 +12,7 @@ services:
     environment: # DOCKER_HOST could be used to run rendering on a dedicated service.
       - "LC_ALL=en_US.utf8"
       - "HTTP_PROXY=http://warcprox:8000/"
+      - "HTTPS_PROXY=http://warcprox:8000/"
       - "PORT=8010"
       - "NODE_ENV=development"
       - "PUPPETEER_CLUSTER_SIZE=2"
@@ -30,8 +31,8 @@ services:
     environment:
       - "LC_ALL=en_US.utf8"
       - "TMP=/tmp/warcprox"
-    #ports:
-    #  - "8000:8000"
+    ports:
+      - "8000:8000"
     volumes:
       - "./integration-test/output:/heritrix/wren"
 

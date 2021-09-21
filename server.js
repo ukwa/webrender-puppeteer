@@ -22,10 +22,13 @@ const maxConcurrency = parseInt(process.env.PUPPETEER_CLUSTER_SIZE || '2', 10);
   // Set up the browser in the required configuration:
   const browserArgs = {
     ignoreHTTPSErrors: true,
+    dumpio: true,
+    headless: true,
     args: [
       '--disk-cache-size=0',
       '--no-sandbox',
       '--ignore-certificate-errors',
+      '--disable-gpu',
       '--disable-dev-shm-usage',
       "--no-xshm", // needed for Chrome >80 (check if puppeteer adds automatically)
       "--disable-background-media-suspend",
@@ -33,6 +36,7 @@ const maxConcurrency = parseInt(process.env.PUPPETEER_CLUSTER_SIZE || '2', 10);
       "--disable-features=IsolateOrigins,site-per-process",
       "--disable-popup-blocking",
       "--disable-backgrounding-occluded-windows",
+      '--proxy-bypass-list=""'
     ],
   };
   // Add proxy configuration if supplied:
@@ -40,7 +44,7 @@ const maxConcurrency = parseInt(process.env.PUPPETEER_CLUSTER_SIZE || '2', 10);
     var proxy_url = process.env.HTTP_PROXY;
     // Remove any trailing slash:
     proxy_url = proxy_url.replace(/\/$/,'')
-    browserArgs.args.push(`--proxy-server=${proxy_url}`);
+    browserArgs.args.unshift(`--proxy-server=${proxy_url}`);
     // Record parts:
     var proxy_host = new URL(proxy_url).hostname;
     var proxy_port = new URL(proxy_url).port;
