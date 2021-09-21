@@ -53,6 +53,7 @@ class WARCWriter {
 
     _closeOutputFile() {
         if( this.stream != null ) {
+            console.log(`Closing output file ${this.stream.filename} ...`);
             this.stream.end();
             // And drop the reference:
             this.stream = null;
@@ -114,20 +115,28 @@ class WARCWriter {
         this.stream.write( await WARCSerializer.serialize(warcInfoRecord, {gzip: true} ) );
     }
 
-    async writeRenderedImage(url, contentType, payload) {
+    async writeRenderedImageFromBuffer(url, contentType, payload) {
+        async function* content() {
+            yield payload;
+        }
+
+        const contentLength = Buffer.byteLength(payload);
+
+        await this.writeRenderedImage(url, contentType, content, contentLength);
+    }
+
+    async writeRenderedImage(url, contentType, content, contentLength=null) {
         // Create a sample response
         const date = new Date().toISOString();
         const type = "resource";
         const warcHeaders = {
-            "Content-Type": contentType,
-            "Content-Length": Buffer.byteLength(payload)
+            "Content-Type": contentType
         };
+        if( contentLength != null ) {
+            warcHeaders['Content-Length'] = contentLength;
+        }
 
         console.log(`writeRenderedImage ${url} - ${contentType} - ${typeof payload}`);
-
-        async function* content() {
-            yield payload;
-        }        
 
         const record = await WARCRecord.create({url, date, type, warcVersion, warcHeaders, refersToUrl: url}, content());
 

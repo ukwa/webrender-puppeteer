@@ -136,7 +136,7 @@ async function render_page(page, url, extraHeaders) {
     page.setUserAgent(`${userAgent} ${process.env.USER_AGENT_ADDITIONAL}`);
   }
 
-  await page.setUserAgent('Chrome/91.0.4469.0');
+ // await page.setUserAgent('Chrome/91.0.4469.0');
  // await page.setUserAgent('Chrome/88.0.4298.0');
 
   // Record requests/responses in a standard format:
@@ -160,10 +160,7 @@ async function render_page(page, url, extraHeaders) {
     console.log(`${url} - Waiting for any activity to die down...`);
     // Using networkidle0 will usually hang as this event has already passed.
     // await page.waitForNavigation({ waitUntil: 'networkidle0' });
-    // This would be ideal but appears to need a more recent version of Puppeteer:
-    // ??? await page.waitForNetworkIdle({timeout: 4000});
-    waitForNetworkIdle(page,4000);
-    //await page.waitForTimeout(4000);
+    await page.waitForNetworkIdle({timeout: 4000});
 
     // Now scroll down:
     console.log(`${url} - Scrolling down...`);
@@ -171,9 +168,7 @@ async function render_page(page, url, extraHeaders) {
   
     // Await for any more elements scrolling down prompted:
     console.log(`${url} - Waiting for any activity to die down...`);
-    // ??? await page.waitForNetworkIdle({timeout: 4000});
-    waitForNetworkIdle(page,4000);
-    //await page.waitForTimeout(6000);
+    await page.waitForNetworkIdle({timeout: 4000});
 
   } catch (e) {
     console.error('We got an error, but lets continue and render what we get.\n', e);
@@ -183,7 +178,6 @@ async function render_page(page, url, extraHeaders) {
   console.log(`${url} - Rendering full page...`);
   // Full page:
   const image = await page.screenshot({ fullPage: true });
-  //const image = await page.screenshot({ path: `${outPrefix}rendered-full.png`, fullPage: true });
 
   // A place to record URLs of different kinds:
   const urls = {};
@@ -225,17 +219,35 @@ async function render_page(page, url, extraHeaders) {
   console.log(`${url} - Rendering screenshot as JPEG...`);
   const imageJpeg = await page.screenshot({ type: 'jpeg', quality: 100, fullPage: true });
 
+  // And the HTML:
+  const html = await page.content();
+
+  // Store HTML and PNG in WARCs:
+  await ww.writeRenderedImageFromBuffer(`onreadydom:${url}`, 'text/html', new TextEncoder().encode(html));
+  await ww.writeRenderedImageFromBuffer(`screenshot:${url}`, 'image/png', image);
+
   // Print to PDF but use the screen CSS:
   console.log(`${url} - Rendering PDF...`);
-  await page.emulateMediaType('screen');
-  const pdf = await page.pdf({
-    //path: `${outPrefix}rendered-page.pdf`,
-    format: 'A4',
-    scale: 0.75,
-    printBackground: true,
-  });
-  const html = await page.content();
-  //await promisify(fs.writeFile)(`${outPrefix}rendered.html`, html);
+  try {
+    await page.emulateMediaType('screen');
+    // Uses streaming mode to reduce RAM usage:
+    const pdf = await page.createPDFStream({
+      format: 'A4',
+      scale: 0.75,
+      printBackground: true,
+      timeout: 30*1000, // Use a shortish timeout as this can be flaky.
+    });
+    // Iterate through the Readable stream chunks:
+    async function* content() {
+      for await (const chunk of pdf) {
+        yield chunk;
+      }
+    }
+    await ww.writeRenderedImage(`pdf:${url}`, 'application/pdf', content);
+  } catch(e) {
+    console.log(`PDF rendering failed for ${url}:`)
+    console.log(e);
+  }
 
   // After rendering main view, attempt to switch between devices to grab alternative media
   if (switchDevices) {
@@ -294,7 +306,12 @@ async function render_page(page, url, extraHeaders) {
     'comment': 'https://github.com/ukwa/webrender-puppeteer'
   }
   // And write to WARC
-  await ww.writeRenderedImage(`har:${url}`, 'application/json', new TextEncoder().encode(JSON.stringify(harStandard)));
+  await ww.writeRenderedImageFromBuffer(`har:${url}`, 'application/json', new TextEncoder().encode(JSON.stringify(harStandard)));
+
+  // The full page with image map:
+  const title = harStandard['log']['pages'][0]['title'];
+  const imageMapHtml = _toImageMap(url, title, imageJpeg, urls.map);
+  await ww.writeRenderedImageFromBuffer(`imagemap:${url}`, 'text/html', new TextEncoder().encode(imageMapHtml));
 
   // Build extended/wrapper HAR:
   const harExtended = {
@@ -310,18 +327,6 @@ async function render_page(page, url, extraHeaders) {
     encoding: 'base64',
     contentType: 'text/html',
   };
-  await ww.writeRenderedImage(`onreadydom:${url}`, 'text/html', new TextEncoder().encode(html));
-
-  // TBA The full page with image map:
-  //harExtended.finalImageMap
-  const title = harStandard['log']['pages'][0]['title'];
-  const imageMapHtml = _toImageMap(url, title, imageJpeg, urls.map);
-  await ww.writeRenderedImage(`imagemap:${url}`, 'text/html', new TextEncoder().encode(imageMapHtml));
-
-  // thumbnail, imagemap
-  // The full page as image and PDF:
-  await ww.writeRenderedImage(`screenshot:${url}`, 'image/png', image);
-  await ww.writeRenderedImage(`pdf:${url}`, 'application/pdf', pdf);
 
   // Clean out the event listeners:
   await page.browser().removeListener('targetcreated', interceptor);
@@ -439,7 +444,7 @@ async function autoScroll(page) {
         window.scrollBy(0, distance);
         totalHeight += distance;
 
-        if (totalHeight >= scrollHeight || totalHeight > 2048) {
+        if (totalHeight >= scrollHeight || totalHeight > 4096) {
           clearInterval(timer);
           resolve();
         }
@@ -504,40 +509,6 @@ async function clickKnownModals(page) {
   }
 }
 
-// From https://stackoverflow.com/questions/54377650/how-can-i-wait-for-network-idle-after-click-on-an-element-in-puppeteer
-// Hack to cope with lack of this function in this version of Puppteer:
-function waitForNetworkIdle(page, timeout, maxInflightRequests = 0) {
-  page.on('request', onRequestStarted);
-  page.on('requestfinished', onRequestFinished);
-  page.on('requestfailed', onRequestFinished);
-
-  let inflight = 0;
-  let fulfill;
-  let promise = new Promise(x => fulfill = x);
-  let timeoutId = setTimeout(onTimeoutDone, timeout);
-  return promise;
-
-  function onTimeoutDone() {
-    page.removeListener('request', onRequestStarted);
-    page.removeListener('requestfinished', onRequestFinished);
-    page.removeListener('requestfailed', onRequestFinished);
-    fulfill();
-  }
-
-  function onRequestStarted() {
-    ++inflight;
-    if (inflight > maxInflightRequests)
-      clearTimeout(timeoutId);
-  }
-
-  function onRequestFinished() {
-    if (inflight === 0)
-      return;
-    --inflight;
-    if (inflight === maxInflightRequests)
-      timeoutId = setTimeout(onTimeoutDone, timeout);
-  }
-}
 
 module.exports = {
   render_page,
