@@ -150,7 +150,7 @@ async function render_page(page, url, extraHeaders) {
     // Main navigation
     await page.goto(url, { waitUntil: 'networkidle2' }); // Longer timeout set above
     console.log(`${url} - Waiting for delayed popups...`);
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(4000);
 
     // Look for any "I Accept" buttons
     console.log(`${url} - Looking for any modal buttons...`);
@@ -160,6 +160,7 @@ async function render_page(page, url, extraHeaders) {
     console.log(`${url} - Waiting for any activity to die down...`);
     // Using networkidle0 will usually hang as this event has already passed.
     // await page.waitForNavigation({ waitUntil: 'networkidle0' });
+    // This would be ideal but appears to need a more recent version of Puppeteer:
     // ??? await page.waitForNetworkIdle({timeout: 4000});
     waitForNetworkIdle(page,4000);
     //await page.waitForTimeout(4000);
