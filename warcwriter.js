@@ -10,10 +10,15 @@ const warcInfo = {
     "software": "warcio.js in node"
 }
 
-const MAX_WARC_SIZE_B = 1000*1000*1000; // 1GB 
-//const MAX_WARC_PERIOD_MS = 24*60*60*1000; // 24 hrs
-const MAX_WARC_PERIOD_MS = 60*1000;
+// 1GB default WARC size:
+const MAX_WARC_SIZE_B = parseInt(process.env.MAX_WARC_SIZE_B || '0', 10) || 1000*1000*1000; 
 
+// 1 day default WARC period:
+const MAX_WARC_PERIOD_MS = parseInt(process.env.MAX_WARC_PERIOD_MS || '0', 10) || 24*60*60*1000; 
+
+/**
+ * 
+ */
 class WARCWriter {
 
     constructor( outputPath, warcPrefix ) {
@@ -29,12 +34,18 @@ class WARCWriter {
         process.on('SIGINT', this._closeOutputFile);
         process.on('SIGTERM', this._closeOutputFile);
 
-        var minutes = 1/6.0, the_interval = minutes * 60 * 1000;
-        setInterval(() => {WARCWriter._checkRotation(this);}, the_interval);        
+        // Set up the watcher task that checks for the age of WARCs:
+        var the_interval = Math.round(MAX_WARC_PERIOD_MS/100) + 1000; // (at least one second)
+        setInterval(() => {WARCWriter._checkRotation(this);}, the_interval);
+
+        // Log configuration settings:
+        console.log("Maximum WARC size setting (b): " + MAX_WARC_SIZE_B);
+        console.log("Maximum WARC duration setting (ms): " + MAX_WARC_PERIOD_MS);
+        console.log("Maximum WARC duration check interval (ms): " + the_interval);
     }
 
     static _checkRotation(warcWriter) {
-        console.log(`I am doing my 1 minutes check ${warcWriter.written}, ${warcWriter.openedAt}...`);
+        console.log(`Checking age of ${warcWriter.written}, ${warcWriter.openedAt}...`);
         if( warcWriter.written > 0 && (Date.now() - warcWriter.openedAt) > MAX_WARC_PERIOD_MS) {
             warcWriter._closeOutputFile();
         }    

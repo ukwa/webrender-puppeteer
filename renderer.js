@@ -438,7 +438,7 @@ async function autoScroll(page) {
         window.scrollBy(0, distance);
         totalHeight += distance;
 
-        if (totalHeight >= scrollHeight || totalHeight > 4000) {
+        if (totalHeight >= scrollHeight || totalHeight > 2048) {
           clearInterval(timer);
           resolve();
         }
@@ -496,7 +496,7 @@ async function clickKnownModals(page) {
     await clickButton(page, 'I Agree');
     await clickButton(page, 'AGREE');
     await clickButton(page, 'Allow all');
-    await clickButton(page, 'Yes, I\'m happy');
+    await clickButton(page, 'Yes'); // Guardian UK (subset of 'Yes, I’m happy')
 
   } catch (e) {
     console.error('A page.evaluate failed, perhaps due to a navigation event.\n', e);

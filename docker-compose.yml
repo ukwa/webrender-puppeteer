@@ -20,7 +20,7 @@ services:
     ports:
       - "8010:8010"
     volumes:
-      - "./output:/heritrix/wren"
+      - "./integration-test/output:/heritrix/wren"
 
   # WARC Proxy, with de-duplication disabled and a rapid rollover:
   warcprox:
@@ -33,5 +33,15 @@ services:
     #ports:
     #  - "8000:8000"
     volumes:
-      - "./output:/heritrix/wren"
+      - "./integration-test/output:/heritrix/wren"
+
+  # Robot Integration Tests
+  robot:
+    image: ukwa/robot-framework:main
+    command: "/tests"
+    environment:
+      - "PUSH_GATEWAY="
+    volumes:
+      - ./integration-test/tests:/tests:ro
+      - ./integration-test/results:/results:rw
 

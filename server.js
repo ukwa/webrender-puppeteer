@@ -55,7 +55,7 @@ const maxConcurrency = parseInt(process.env.PUPPETEER_CLUSTER_SIZE || '2', 10);
         concurrency: Cluster.CONCURRENCY_BROWSER, // < required to ensure extra headers are set properly per URL/task.
         maxConcurrency: maxConcurrency,
         puppeteerOptions: browserArgs,
-        timeout: 5*60*1000, // Large 5min timeout by default
+        timeout: 5*60*1000, // Set large 5min timeout by default (but renderer should timeout first)
     });
 
     // Event handler to be called in case of problems

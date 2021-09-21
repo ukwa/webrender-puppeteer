@@ -20,7 +20,6 @@ To Do
 - Tests: simple page, dynamic page, serviceworker, pdf, xml, dead/gone site, unicode URLs
 - features (ENV or URL?): USER_AGENT_ADDITIONAL, switchDevices, scaleFactor, viewport width/height, memento datetime,  
 -  Debug why switchDevices is reaaallly sloooow on some sites, e.g. www.wired.co.uk, where it also over-crawls.
--  
 
 To add unique process ID:
 
@@ -30,4 +29,13 @@ var id = crypto.randomBytes(20).toString('hex');
 
 and incrementing integer padded, https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/padStart
 
+Test sites:
 
+- ACID http://acid.matkelly.com/
+- Crawl Test Site http://data.webarchive.org.uk/crawl-test-site/
+- A Sitemap http://data.webarchive.org.uk/crawl-test-site/sitemap.xml
+- A Twitter Account https://twitter.com/UKWebArchive/
+- HuffPo UK https://www.huffingtonpost.co.uk/
+- Guardian https://www.theguardian.com/uk
+- BBC News https://www.bbc.co.uk/news
+- Wired https://www.wired.co.uk/
