@@ -28,7 +28,7 @@ RUN apt-get update \
 # Install all dependencies so e.g. Puppeteer is available in the container.
 WORKDIR /app
 COPY package.json .
-RUN npm install \
+RUN npm install --force \
     # Add user so we don't need --no-sandbox.
     # same layer as npm install to keep re-chowned files from using up several hundred MBs more space
     && groupadd -r pptruser && useradd -r -g pptruser -G audio,video pptruser \

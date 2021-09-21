@@ -3,6 +3,7 @@
 // 'use strict' not required for modules?;
 
 const fs = require('fs');
+const { runInThisContext } = require('vm');
 const { WARCRecord, WARCSerializer } = require("warcio");
 
 const warcVersion = "WARC/1.1";
@@ -29,10 +30,22 @@ class WARCWriter {
         this.written = 0;
         this.openedAt = null;
 
+        // Store a reference to this where the shutdown handler can get to it:
+        var self = this;
+
+        const shutdownHandler = function() {
+            console.log("Running shutdown handler...")
+            if( self.stream != null ) {
+                const filename = self.stream.filename;
+                self._closeOutputFile();
+                WARCWriter._renameOpenWarcFile(filename);
+            } else {
+                console.log("Stream is NULL.");
+            }
+        }
+
         // Ensure the current file gets shut down on various exits:
-        process.on('exit', this._closeOutputFile);
-        process.on('SIGINT', this._closeOutputFile);
-        process.on('SIGTERM', this._closeOutputFile);
+        process.on('exit', shutdownHandler);
 
         // Set up the watcher task that checks for the age of WARCs:
         var the_interval = Math.round(MAX_WARC_PERIOD_MS/100) + 1000; // (at least one second)
@@ -51,6 +64,11 @@ class WARCWriter {
         }    
     }
 
+    static _renameOpenWarcFile(filename) {
+        console.log(`Output file closed, filename = ${filename}, renaming without .open.`);
+        fs.renameSync(filename, filename.slice(0, -5));
+    }
+
     _closeOutputFile() {
         if( this.stream != null ) {
             console.log(`Closing output file ${this.stream.filename} ...`);
@@ -64,12 +82,12 @@ class WARCWriter {
         this._closeOutputFile();
         // Make a new file:
         const filename = this._generateFilename(null,1);
+        this.filename = filename;
         this.stream = fs.createWriteStream(filename);
         this.stream.filename = filename;
         this.stream.on('close', () => {
             // rename the file:
-            console.log(`Output file closed, filename = ${filename}, renaming without .open.`);
-            fs.renameSync(filename, filename.slice(0, -5));
+            _renameOpenWarcFile(filename);
         });
     }
 

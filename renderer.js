@@ -13,6 +13,7 @@ const WARC_OUTPUT_PATH = process.env.WARC_OUTPUT_PATH || '.';
 const WARC_PREFIX = process.env.WARC_PREFIX || 'WEBRENDERED';
 const ww = new WARCWriter(WARC_OUTPUT_PATH, WARC_PREFIX);
 
+// Get device list from Puppeteer:
 const { devices } = puppeteer;
 
 // const url = 'http://data.webarchive.org.uk/crawl-test-site/documents/2018/12/10/broken-links.html';
