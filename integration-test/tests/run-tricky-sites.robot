@@ -11,7 +11,6 @@ Render This URL
 *** Test Cases ***
 Render Tricky Sites
     Sleep    10s    Waiting for the container to start...
-    Render This URL    https://www.wired.co.uk/
     Render This URL    http://acid.matkelly.com/
     Render This URL    http://data.webarchive.org.uk/crawl-test-site/
     Render This URL    http://data.webarchive.org.uk/crawl-test-site/sitemap.xml
@@ -19,3 +18,5 @@ Render Tricky Sites
     Render This URL    https://www.huffingtonpost.co.uk/
     Render This URL    https://www.theguardian.com/uk
     Render This URL    https://www.bbc.co.uk/news
+# This is really slow:
+#    Render This URL    https://www.wired.co.uk/
