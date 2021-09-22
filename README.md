@@ -19,7 +19,9 @@ To Do
   - extra_headers = { "Warcprox-Meta" : json.dumps( { 'warc-prefix' : warc_prefix}) }
 - Tests: simple page, dynamic page, serviceworker, pdf, xml, dead/gone site, unicode URLs
 - features (ENV or URL?): USER_AGENT_ADDITIONAL, switchDevices, scaleFactor, viewport width/height, memento datetime,  
--  Debug why switchDevices is reaaallly sloooow on some sites, e.g. www.wired.co.uk, where it also over-crawls.
+- Debug why switchDevices is reaaallly sloooow on some sites, e.g. www.wired.co.uk, where it also over-crawls.
+- Also check aria-label="Close" style buttons?
+
 
 To add unique process ID:
 

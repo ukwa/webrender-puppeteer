@@ -127,14 +127,18 @@ async function render_page(page, url, extraHeaders) {
   await page.setDefaultNavigationTimeout(60000); // 60 seconds instead of 30
 
   // Set the user agent up:
+  const browserUserAgent = await page.browser().userAgent();
+  console.log("Default User-Agent: " + browserUserAgent );
   // Add optional userAgent override:
   if ('USER_AGENT' in process.env) {
+    console.log("Setting User-Agent: " + process.env.USER_AGENT);
     page.setUserAgent(process.env.USER_AGENT);
     // e.g. 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) \
     // Chrome/37.0.2062.120 Safari/537.36';
   } else if ('USER_AGENT_ADDITIONAL' in process.env) {
-    const userAgent = await browser.userAgent();
-    page.setUserAgent(`${userAgent} ${process.env.USER_AGENT_ADDITIONAL}`);
+    const userAgent = `${browserUserAgent} ${process.env.USER_AGENT_ADDITIONAL}`;
+    console.log("Setting User-Agent: " + userAgent);
+    page.setUserAgent(userAgent);
   }
 
  // await page.setUserAgent('Chrome/91.0.4469.0');
@@ -151,7 +155,7 @@ async function render_page(page, url, extraHeaders) {
     // Main navigation
     await page.goto(url, { waitUntil: 'networkidle2' }); // Longer timeout set above
     console.log(`${url} - Waiting for delayed popups...`);
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(2*1000);
 
     // Look for any "I Accept" buttons
     console.log(`${url} - Looking for any modal buttons...`);
@@ -167,11 +171,24 @@ async function render_page(page, url, extraHeaders) {
     // Now scroll down:
     console.log(`${url} - Scrolling down...`);
     await autoScroll(page);
+    console.log(`${url} - Scrolling back to the top...`);
+    await page.evaluate('window.scrollTo(0,0)');
+ 
+    // Set viewport to cover whole body:
+    const bodyHandle = await page.$('body');
+    var { width, height } = await bodyHandle.boundingBox();
+    width = Math.floor(width);
+    height = Math.floor(height);
+    if( height > viewportHeight) {
+      console.log("Setting viewport: "+ width + "x" + height);
+      await page.setViewport({width: width, height: height});
+    }
   
     // Await for any more elements scrolling down prompted:
     console.log(`${url} - Waiting for any activity to die down...`);
     //await page.waitForNetworkIdle({timeout: 4000});
     waitForNetworkIdle(page,4000);
+    await page.waitForTimeout(10*1000);
 
   } catch (e) {
     console.error('We got an error, but lets continue and render what we get.\n', e);
@@ -392,13 +409,14 @@ async function render(url) {
       '--disk-cache-size=0',
       '--no-sandbox',
       '--ignore-certificate-errors',
+      '--disable-gpu',
       '--disable-dev-shm-usage',
       "--no-xshm", // needed for Chrome >80 (check if puppeteer adds automatically)
       "--disable-background-media-suspend",
       "--autoplay-policy=no-user-gesture-required",
       "--disable-features=IsolateOrigins,site-per-process",
       "--disable-popup-blocking",
-      "--disable-backgrounding-occluded-windows",
+      "--disable-backgrounding-occluded-windows"
     ],
   };
   // Add proxy configuration if supplied:
@@ -441,21 +459,50 @@ async function autoScroll(page) {
   await page.evaluate(async () => {
     await new Promise((resolve) => {
       let totalHeight = 0;
-      const distance = window.innerHeight;
+      const distance = Math.floor(window.innerHeight/2);
       const timer = setInterval(() => {
         const { scrollHeight } = document.body;
         window.scrollBy(0, distance);
         totalHeight += distance;
 
-        if (totalHeight >= scrollHeight || totalHeight > 20000) {
+        if (totalHeight >= scrollHeight || totalHeight > 10000) {
           clearInterval(timer);
           resolve();
         }
-      }, 2000);
+      }, 1000);
     });
   });
 }
 
+async function clickButton2(page, buttonText) {
+  // Set up matcher logic
+  clickMatchingButtons = (query) => {
+    const elements = [...document.querySelectorAll('button')];
+
+    // Find elements with filter
+    const targetElements = elements.filter(e => e.innerText.toLowerCase().includes(query.toLowerCase()));
+  
+    // make sure the element exists, and only then click it
+    if (targetElements) {
+      targetElements.forEach((targetElement) => {
+        targetElement.click();
+      });
+    }
+    
+  }
+  
+  // Find all buttons in all frames:
+  //await page.evaluate(clickMatchingButtons, buttonText);
+  await page.frames().forEach( async (frame) => {
+    await frame.evaluate(clickMatchingButtons, buttonText);
+  });
+}
+
+/**
+ * This seems to reliably deal with the HuffPo UK cookie banner, where the above (which should be the same) does not.
+ * @param {*} page 
+ * @param {*} buttonText 
+ */
 async function clickButton(page, buttonText) {
   await page.evaluate((query) => {
     const elements = [...document.querySelectorAll('button')];
@@ -474,6 +521,8 @@ async function clickButton(page, buttonText) {
       targetElement.click();
     }
   }, buttonText.toLowerCase());
+  // And scan frames:
+  await clickButton2(page, buttonText);
 }
 
 /**
@@ -487,7 +536,7 @@ async function clickKnownModals(page) {
 
     // Click close on a class of popup observer at https://www.britishdeafnews.co.uk/
     // Doesn't seem to work!
-    await page.evaluate(async () => {
+    await page.evaluate( () => {
       const elements = [...document.querySelectorAll('a.ppsPopupClose')];
       const targetElement = elements[0];
       // make sure the element exists, and only then click it
@@ -497,15 +546,15 @@ async function clickKnownModals(page) {
     });
 
     // Click known common modals (doing these last as some lead to navigation events):
-    await clickButton(page, 'Yes,'); // Guardian UK (subset of 'Yes, I’m happy')
+    await clickButton(page, 'Yes, I’m happy'); // Guardian UK
     await clickButton(page, 'I Accept');
     await clickButton(page, 'I Understand');
     await clickButton(page, 'Accept Recommended Settings');
-    await clickButton(page, 'Close');
     await clickButton(page, 'OK');
     await clickButton(page, 'I Agree');
-    await clickButton(page, 'AGREE');
+    await clickButton(page, 'AGREE & EXIT');
     await clickButton(page, 'Allow all');
+    await clickButton(page, 'Close');
 
   } catch (e) {
     console.error('A page.evaluate failed, perhaps due to a navigation event.\n', e);
