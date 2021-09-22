@@ -151,7 +151,7 @@ async function render_page(page, url, extraHeaders) {
     // Main navigation
     await page.goto(url, { waitUntil: 'networkidle2' }); // Longer timeout set above
     console.log(`${url} - Waiting for delayed popups...`);
-    await page.waitForTimeout(4000);
+    await page.waitForTimeout(2000);
 
     // Look for any "I Accept" buttons
     console.log(`${url} - Looking for any modal buttons...`);
@@ -161,7 +161,8 @@ async function render_page(page, url, extraHeaders) {
     console.log(`${url} - Waiting for any activity to die down...`);
     // Using networkidle0 will usually hang as this event has already passed.
     // await page.waitForNavigation({ waitUntil: 'networkidle0' });
-    await page.waitForNetworkIdle({timeout: 4000});
+    //await page.waitForNetworkIdle({timeout: 4000});
+    waitForNetworkIdle(page,4000);
 
     // Now scroll down:
     console.log(`${url} - Scrolling down...`);
@@ -169,7 +170,9 @@ async function render_page(page, url, extraHeaders) {
   
     // Await for any more elements scrolling down prompted:
     console.log(`${url} - Waiting for any activity to die down...`);
-    await page.waitForNetworkIdle({timeout: 4000});
+    //await page.waitForNetworkIdle({timeout: 4000});
+    waitForNetworkIdle(page,2000);
+    await page.waitForTimeout(2000);
 
   } catch (e) {
     console.error('We got an error, but lets continue and render what we get.\n', e);
@@ -445,11 +448,11 @@ async function autoScroll(page) {
         window.scrollBy(0, distance);
         totalHeight += distance;
 
-        if (totalHeight >= scrollHeight || totalHeight > 4096) {
+        if (totalHeight >= scrollHeight || totalHeight > 4000) {
           clearInterval(timer);
           resolve();
         }
-      }, 1000);
+      }, 2000);
     });
   });
 }
@@ -507,6 +510,41 @@ async function clickKnownModals(page) {
 
   } catch (e) {
     console.error('A page.evaluate failed, perhaps due to a navigation event.\n', e);
+  }
+}
+
+// From https://stackoverflow.com/questions/54377650/how-can-i-wait-for-network-idle-after-click-on-an-element-in-puppeteer
+// Hack to cope with lack of this function in this version of Puppteer (<10.4.0):
+function waitForNetworkIdle(page, timeout, maxInflightRequests = 0) {
+  page.on('request', onRequestStarted);
+  page.on('requestfinished', onRequestFinished);
+  page.on('requestfailed', onRequestFinished);
+
+  let inflight = 0;
+  let fulfill;
+  let promise = new Promise(x => fulfill = x);
+  let timeoutId = setTimeout(onTimeoutDone, timeout);
+  return promise;
+
+  function onTimeoutDone() {
+    page.removeListener('request', onRequestStarted);
+    page.removeListener('requestfinished', onRequestFinished);
+    page.removeListener('requestfailed', onRequestFinished);
+    fulfill();
+  }
+
+  function onRequestStarted() {
+    ++inflight;
+    if (inflight > maxInflightRequests)
+      clearTimeout(timeoutId);
+  }
+
+  function onRequestFinished() {
+    if (inflight === 0)
+      return;
+    --inflight;
+    if (inflight === maxInflightRequests)
+      timeoutId = setTimeout(onTimeoutDone, timeout);
   }
 }
 

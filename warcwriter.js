@@ -45,6 +45,7 @@ class WARCWriter {
 
         // Ensure the current file gets shut down on various exits:
         process.on('exit', shutdownHandler);
+        process.on('SIGTERM', shutdownHandler);
 
         // Set up the watcher task that checks for the age of WARCs:
         var the_interval = Math.round(MAX_WARC_PERIOD_MS/100) + 1000; // (at least one second)
