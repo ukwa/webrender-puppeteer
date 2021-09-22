@@ -3,6 +3,7 @@
 // 'use strict' not required for modules?;
 
 const fs = require('fs');
+const Crypto = require('crypto')
 const { WARCRecord, WARCSerializer } = require("warcio");
 
 const warcVersion = "WARC/1.1";
@@ -28,6 +29,7 @@ class WARCWriter {
         this.stream = null;
         this.written = 0;
         this.openedAt = null;
+        this.writerId = WARCWriter.randomId();
 
         // Store a reference to this where the shutdown handler can get to it:
         var self = this;
@@ -55,6 +57,13 @@ class WARCWriter {
         console.log("Maximum WARC size setting (b): " + MAX_WARC_SIZE_B);
         console.log("Maximum WARC duration setting (ms): " + MAX_WARC_PERIOD_MS);
         console.log("Maximum WARC duration check interval (ms): " + the_interval);
+    }
+
+    static randomId(size = 8) { 
+        return Crypto
+            .randomBytes(size)
+            .toString('base64url')
+            .slice(0, size).toLowerCase();
     }
 
     static _checkRotation(warcWriter) {
@@ -103,9 +112,9 @@ class WARCWriter {
         var hour = pad(time.getHours());
         var minute = pad(time.getMinutes());
         var seconds = pad(time.getSeconds());
-        var ms = time.getMilliseconds();
+        var ms = time.getMilliseconds().toString().padStart(3,'0');
       
-        return `${this.outputPath}/${this.warcPrefix}-${month}${day}${hour}${minute}${seconds}.${ms}-${index}-output.warc.gz.open`;
+        return `${this.outputPath}/${this.warcPrefix}-${month}${day}${hour}${minute}${seconds}${ms}-${index.toString().padStart(5,'0')}-${this.writerId}.warc.gz.open`;
     };
 
     async _write(record) {
