@@ -114,7 +114,7 @@ async function render_page(page, url, extraHeaders) {
 
   // Main image width:
   const viewportWidth = parseInt(process.env.VIEWPORT_WIDTH) || 1366;
-  const viewportHeight = parseInt(process.env.VIEWPORT_HEIGHT) || Math.round(viewportWidth / 1.6180);
+  const viewportHeight = parseInt(process.env.VIEWPORT_HEIGHT) || Math.round(viewportWidth * 1.6180);
   const deviceScaleFactor = parseFloat(process.env.DEVICE_SCALE_FACTOR) || 1.0;
 
   // Set the page size:
@@ -167,6 +167,7 @@ async function render_page(page, url, extraHeaders) {
     // await page.waitForNavigation({ waitUntil: 'networkidle0' });
     //await page.waitForNetworkIdle({timeout: 4000});
     waitForNetworkIdle(page,4000);
+    await page.waitForTimeout(2*1000);
 
     // Now scroll down:
     console.log(`${url} - Scrolling down...`);
@@ -177,18 +178,20 @@ async function render_page(page, url, extraHeaders) {
     // Set viewport to cover whole body:
     const bodyHandle = await page.$('body');
     var { width, height } = await bodyHandle.boundingBox();
-    width = Math.floor(width);
     height = Math.floor(height);
+    // Don't set it very large (things get bugger >16k):
+    if( height > 10000 ) {
+      height = 10000;
+    }
     if( height > viewportHeight) {
-      console.log("Setting viewport: "+ width + "x" + height);
-      await page.setViewport({width: width, height: height});
+      console.log("Setting viewport: "+ viewportWidth + "x" + height);
+      await page.setViewport({width: viewportWidth, height: height});
     }
   
     // Await for any more elements scrolling down prompted:
     console.log(`${url} - Waiting for any activity to die down...`);
     //await page.waitForNetworkIdle({timeout: 4000});
     waitForNetworkIdle(page,4000);
-    await page.waitForTimeout(10*1000);
 
   } catch (e) {
     console.error('We got an error, but lets continue and render what we get.\n', e);
@@ -465,7 +468,7 @@ async function autoScroll(page) {
         window.scrollBy(0, distance);
         totalHeight += distance;
 
-        if (totalHeight >= scrollHeight || totalHeight > 10000) {
+        if (totalHeight >= scrollHeight || totalHeight > 8000) {
           clearInterval(timer);
           resolve();
         }
