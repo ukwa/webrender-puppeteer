@@ -171,8 +171,7 @@ async function render_page(page, url, extraHeaders) {
     // Await for any more elements scrolling down prompted:
     console.log(`${url} - Waiting for any activity to die down...`);
     //await page.waitForNetworkIdle({timeout: 4000});
-    waitForNetworkIdle(page,2000);
-    await page.waitForTimeout(2000);
+    waitForNetworkIdle(page,4000);
 
   } catch (e) {
     console.error('We got an error, but lets continue and render what we get.\n', e);
@@ -239,7 +238,7 @@ async function render_page(page, url, extraHeaders) {
       format: 'A4',
       scale: 0.75,
       printBackground: true,
-      timeout: 30*1000, // Use a shortish timeout as this can be flaky.
+      timeout: 20*1000, // Use a shortish timeout as this can be flaky.
     });
     // Iterate through the Readable stream chunks:
     async function* content() {
@@ -448,7 +447,7 @@ async function autoScroll(page) {
         window.scrollBy(0, distance);
         totalHeight += distance;
 
-        if (totalHeight >= scrollHeight || totalHeight > 4000) {
+        if (totalHeight >= scrollHeight || totalHeight > 20000) {
           clearInterval(timer);
           resolve();
         }
@@ -498,6 +497,7 @@ async function clickKnownModals(page) {
     });
 
     // Click known common modals (doing these last as some lead to navigation events):
+    await clickButton(page, 'Yes,'); // Guardian UK (subset of 'Yes, I’m happy')
     await clickButton(page, 'I Accept');
     await clickButton(page, 'I Understand');
     await clickButton(page, 'Accept Recommended Settings');
@@ -506,7 +506,6 @@ async function clickKnownModals(page) {
     await clickButton(page, 'I Agree');
     await clickButton(page, 'AGREE');
     await clickButton(page, 'Allow all');
-    await clickButton(page, 'Yes'); // Guardian UK (subset of 'Yes, I’m happy')
 
   } catch (e) {
     console.error('A page.evaluate failed, perhaps due to a navigation event.\n', e);

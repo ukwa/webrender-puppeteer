@@ -6,7 +6,7 @@ Library    RequestsLibrary
 Render This URL
     [Arguments]    ${url}
     Log To Console 	Rendering ${url} (5m timeout)...
-    ${response}=    GET  http://webrender:8010/render  params=url=${url}  expected_status=200  timeout=300
+    ${response}=    GET  http://webrender:8010/render  params=url=${url}  expected_status=200  timeout=660
 
 *** Test Cases ***
 Render Tricky Sites
