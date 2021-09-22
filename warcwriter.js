@@ -74,8 +74,10 @@ class WARCWriter {
     }
 
     static _renameOpenWarcFile(filename) {
-        console.log(`Output file closed, filename = ${filename}, renaming without .open.`);
-        fs.renameSync(filename, filename.slice(0, -5));
+        if( fs.existsSync(filename)) {
+            console.log(`Output file closed, filename = ${filename}, renaming without .open.`);
+            fs.renameSync(filename, filename.slice(0, -5));
+        }
     }
 
     _closeOutputFile() {
@@ -96,7 +98,7 @@ class WARCWriter {
         this.stream.filename = filename;
         this.stream.on('close', () => {
             // rename the file:
-            _renameOpenWarcFile(filename);
+            WARCWriter._renameOpenWarcFile(filename);
         });
     }
 
