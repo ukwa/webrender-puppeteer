@@ -22,8 +22,6 @@ const maxConcurrency = parseInt(process.env.PUPPETEER_CLUSTER_SIZE || '2', 10);
   // Set up the browser in the required configuration:
   const browserArgs = {
     ignoreHTTPSErrors: true,
-    dumpio: true,
-    headless: true,
     args: [
       '--disk-cache-size=0',
       '--no-sandbox',
@@ -35,8 +33,7 @@ const maxConcurrency = parseInt(process.env.PUPPETEER_CLUSTER_SIZE || '2', 10);
       "--autoplay-policy=no-user-gesture-required",
       "--disable-features=IsolateOrigins,site-per-process",
       "--disable-popup-blocking",
-      "--disable-backgrounding-occluded-windows",
-      '--proxy-bypass-list=""'
+      "--disable-backgrounding-occluded-windows"
     ],
   };
   // Add proxy configuration if supplied:
