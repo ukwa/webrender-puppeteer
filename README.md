@@ -11,27 +11,26 @@ Then a `git push origin master --follow-tags`` should build a suitably tagged re
 To Do
 =====
 
-- Decide on URI/URN scheme to use for screenshots etc. 
-- In WARCInfo, use just the file name, strip the path:
-- Create something to quickly check WARC records.
-- WARC file name to include unique ID and serial increment.
-- warcprox_prefix parameter and passing that through as an extra header, as per
+Prior to deployment
+
+- [x] Decide on URI/URN scheme to use for screenshots etc.  -- Sticking to current scheme for now.
+- [x] In WARCInfo, use just the file name, strip the path:
+- [x] Create something to quickly check WARC records. -- ReplayWeb app works fine for this for now.
+- [x] WARC file name to include unique ID and serial increment.
+- [x] Use warcprox_prefix parameter and passing that through as an extra header, as per
   - extra_headers = { "Warcprox-Meta" : json.dumps( { 'warc-prefix' : warc_prefix}) }
+- [x] USER_AGENT_ADDITIONAL 
+
+Later:
+
 - Tests: simple page, dynamic page, serviceworker, pdf, xml, dead/gone site, unicode URLs
-- features (ENV or URL?): USER_AGENT_ADDITIONAL, switchDevices, scaleFactor, viewport width/height, memento datetime,  
+- Verification: Some kind of rapid overview of results so test cases can be checked quickly.
+- features (ENV or URL?): , switchDevices, scaleFactor, viewport width/height, memento datetime,  
 - Debug why switchDevices is reaaallly sloooow on some sites, e.g. www.wired.co.uk, where it also over-crawls.
 - Also check aria-label="Close" style buttons?
+- Switch screenshots over to a cleaner URN scheme, possibly PWIDs.
 
-
-To add unique process ID:
-
-var crypto = require("crypto");
-var id = crypto.randomBytes(20).toString('hex');
-// "bb5dc8842ca31d4603d6aa11448d1654"
-
-and incrementing integer padded, https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/padStart
-
-Test sites:
+Current test sites:
 
 - ACID http://acid.matkelly.com/
 - Crawl Test Site http://data.webarchive.org.uk/crawl-test-site/

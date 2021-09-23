@@ -9,25 +9,28 @@ const { promisify } = require('util');
 const PuppeteerHar = require('./puppeteer-har');
 const WARCWriter = require('./warcwriter');
 
+// Read in the package JSON to get the version:
+const packageFileJSON = JSON.parse(fs.readFileSync("package.json"));
+const packageVersion = packageFileJSON["version"];
+const softwareId = `ukwa/webrender-puppeteer:${packageVersion}`;
+
+// Set up WARC writing:
 const WARC_OUTPUT_PATH = process.env.WARC_OUTPUT_PATH || '.';
 const WARC_PREFIX = process.env.WARC_PREFIX || 'WEBRENDERED';
-const ww = new WARCWriter(WARC_OUTPUT_PATH, WARC_PREFIX);
+const WARC_INFO = { 'software': softwareId };
+const ww = new WARCWriter(WARC_OUTPUT_PATH, WARC_PREFIX, WARC_INFO);
 
 // Get device list from Puppeteer:
 const { devices } = puppeteer;
 
-// const url = 'http://data.webarchive.org.uk/crawl-test-site/documents/2018/12/10/broken-links.html';
-// const url = 'http://acid.matkelly.com/';
-// const url = 'https://www.gov.uk/';
-// const url = 'https://www.gov.uk/government/publications?departments[]=department-of-health-and-social-care';
-// const url = 'http://example.org/';
-
+// Log any unexpected errors (rather than crashing out):
 process.on('unhandledRejection', (error, p) => {
   // Will print "unhandledRejection err is not defined"
   console.log('Caught unhandledRejection: ', error.message, p);
   process.exit(1);
 });
 
+// Helper to make headers into an array:
 function headersArray(headers) {
   const result = [];
   Object.entries(headers).forEach(([k, v]) => {
@@ -131,12 +134,12 @@ async function render_page(page, url, extraHeaders) {
   console.log("Default User-Agent: " + browserUserAgent );
   // Add optional userAgent override:
   if ('USER_AGENT' in process.env) {
-    console.log("Setting User-Agent: " + process.env.USER_AGENT);
-    page.setUserAgent(process.env.USER_AGENT);
+    console.log("Setting User-Agent: " + process.env.USER_AGENT.replace('{{version}}', packageVersion));
+    page.setUserAgent(process.env.USER_AGENT.replace('{{version}}', packageVersion));
     // e.g. 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) \
     // Chrome/37.0.2062.120 Safari/537.36';
   } else if ('USER_AGENT_ADDITIONAL' in process.env) {
-    const userAgent = `${browserUserAgent} ${process.env.USER_AGENT_ADDITIONAL}`;
+    const userAgent = `${browserUserAgent} ${process.env.USER_AGENT_ADDITIONAL}`.replace('{{version}}', packageVersion);
     console.log("Setting User-Agent: " + userAgent);
     page.setUserAgent(userAgent);
   }
@@ -198,7 +201,7 @@ async function render_page(page, url, extraHeaders) {
   }
 
   // Render the result:
-  console.log(`${url} - Rendering full page...`);
+  console.log(`${url} - Rendering web page as PNG...`);
   // Full page:
   const image = await page.screenshot({ fullPage: true });
 
@@ -245,31 +248,21 @@ async function render_page(page, url, extraHeaders) {
   // And the HTML:
   const html = await page.content();
 
-  // Store HTML and PNG in WARCs:
-  await ww.writeRenderedImageFromBuffer(`onreadydom:${url}`, 'text/html', new TextEncoder().encode(html));
-  await ww.writeRenderedImageFromBuffer(`screenshot:${url}`, 'image/png', image);
-
   // Print to PDF but use the screen CSS:
   console.log(`${url} - Rendering PDF...`);
-  try {
-    await page.emulateMediaType('screen');
-    // Uses streaming mode to reduce RAM usage:
-    const pdf = await page.createPDFStream({
-      format: 'A4',
-      scale: 0.75,
-      printBackground: true,
-      timeout: 20*1000, // Use a shortish timeout as this can be flaky.
-    });
-    // Iterate through the Readable stream chunks:
-    async function* content() {
-      for await (const chunk of pdf) {
-        yield chunk;
-      }
+  await page.emulateMediaType('screen');
+  // Uses streaming mode to reduce RAM usage:
+  const pdf = await page.createPDFStream({
+    format: 'A4',
+    scale: 0.75,
+    printBackground: true,
+    timeout: 20*1000, // Use a shortish timeout as this can be flaky.
+  });
+  // Iterate through the Readable stream chunks:
+  async function* content() {
+    for await (const chunk of pdf) {
+      yield chunk;
     }
-    await ww.writeRenderedImage(`pdf:${url}`, 'application/pdf', content);
-  } catch(e) {
-    console.log(`PDF rendering failed for ${url}:`)
-    console.log(e);
   }
 
   // After rendering main view, attempt to switch between devices to grab alternative media
@@ -319,26 +312,33 @@ async function render_page(page, url, extraHeaders) {
   // Assemble the results:
   const harStandard = await har.stop();
 
-  // Read in the package JSON to get the version:
-  const packageFileJSON = JSON.parse(await fsp.readFile("package.json"));
-
   // Override creator info:
   harStandard['log']['creator'] = {
     'name': 'webrender-puppeteer',
-    'version': packageFileJSON["version"],
+    'version': packageVersion,
     'comment': 'https://github.com/ukwa/webrender-puppeteer'
   }
-  // And write to WARC
+  // And write to WARC (even if there was no 'page' -- see below):
   await ww.writeRenderedImageFromBuffer(`har:${url}`, 'application/json', new TextEncoder().encode(JSON.stringify(harStandard)));
 
-  // The full page with image map:
-  const title = harStandard['log']['pages'][0]['title'];
-  const imageMapHtml = _toImageMap(url, title, imageJpeg, urls.map);
-  await ww.writeRenderedImageFromBuffer(`imagemap:${url}`, 'text/html', new TextEncoder().encode(imageMapHtml));
+  // Check if there were any pages (there are none for e.g. PDFs):
+  if( harStandard['log']['pages'].length > 0 ) {
+    // Store HTML and PNG in WARCs:
+    await ww.writeRenderedImageFromBuffer(`onreadydom:${url}`, 'text/html', new TextEncoder().encode(html));
+    await ww.writeRenderedImageFromBuffer(`screenshot:${url}`, 'image/png', image);
+
+    // Store the PDF:
+    await ww.writeRenderedImage(`pdf:${url}`, 'application/pdf', content);
+
+    // Store the full page with image map:
+    const title = harStandard['log']['pages'][0]['title'];
+    const imageMapHtml = _toImageMap(url, title, imageJpeg, urls.map);
+    await ww.writeRenderedImageFromBuffer(`imagemap:${url}`, 'text/html', new TextEncoder().encode(imageMapHtml));
+  }
 
   // Build extended/wrapper HAR:
   const harExtended = {
-    'software': `webrender-puppeteer ${packageFileJSON["version"]}`,
+    'software': softwareId,
     'har': harStandard,
     'urls': urls,
     'cookies': await page.cookies(),
@@ -393,18 +393,6 @@ function _toImageMap(url, title, imageJpeg, map) {
 
 
 async function render(url) {
-  // Set up any specified custom headers:
-  const extraHeaders = {};
-  // Add Memento Datetime header if needed:
-  // e.g. Accept-Datetime: Thu, 31 May 2007 20:35:00 GMT
-  if ('MEMENTO_ACCEPT_DATETIME' in process.env) {
-    extraHeaders['Accept-Datetime'] = process.env.MEMENTO_ACCEPT_DATETIME;
-  }
-  // Add a warc-prefix as JSON in a Warcprox-Meta: header
-  if ('WARCPROX_WARC_PREFIX' in process.env) {
-    extraHeaders['Warcprox-Meta'] = `{ "warc-prefix": "${process.env.WARCPROX_WARC_PREFIX}" }`;
-  }
-
   // Set up the browser in the required configuration:
   const browserArgs = {
     ignoreHTTPSErrors: true,
@@ -525,7 +513,9 @@ async function clickButton(page, buttonText) {
     }
   }, buttonText.toLowerCase());
   // And scan frames:
-  await clickButton2(page, buttonText);
+  // This was created for the Guardian, but only seems to half work.
+  // The page is visible, but the images are grey boxes. Not clear why.
+  //await clickButton2(page, buttonText);
 }
 
 /**
