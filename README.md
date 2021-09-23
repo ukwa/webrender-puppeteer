@@ -21,17 +21,24 @@ Prior to deployment
 
 - [x] Decide on URI/URN scheme to use for screenshots etc.  -- Sticking to current scheme for now.
 - [x] In WARCInfo, use just the file name, strip the path:
-- [x] Create something to quickly check WARC records. -- ReplayWeb app works fine for this for now.
+- [x] Create something to quickly check WARC records. -- _ReplayWeb.page_ app works fine for this for now.
 - [x] WARC file name to include unique ID and serial increment.
 - [x] Use warcprox_prefix parameter and passing that through as an extra header, as per
   - extra_headers = { "Warcprox-Meta" : json.dumps( { 'warc-prefix' : warc_prefix}) }
 - [x] USER_AGENT_ADDITIONAL 
+- [ ] Decide how to handle separation of content. See below.
+
+In previous versions, records were sent to `warcprox` and the `warcPrefix` was used to separate WARCs into different streams. This version now stores the rendered content directly, in a single WARC file set. Therefore, to keep e.g. NPLD and By-Permission crawled data separate, we need a separate instance of the `webrender` service.
+
+This seems a little clumsy, but then given the passing-a-warcPrefix-header approach is a bit brittle/flaky, it would probably make sense to have fully separate crawlers, with separate `warcprox` instances as well as `webrender` instances. Given we want the option of switching to using `pywb` as the WARC-writing proxy (so we gain it's advantages over `warcprox`, like fetching full files when the client makes range requests), this is probably a good idea/inevitable.
 
 Later:
 
+- [ ] Switch from `warcprox` to `pywb` - requires at least the equivalent of the CDX updater, and ideally the Kafka crawl log too.
 - Tests: simple page, dynamic page, serviceworker, pdf, xml, dead/gone site, unicode URLs
 - Verification: Some kind of rapid overview of results so test cases can be checked quickly.
-- features (ENV or URL?): , switchDevices, scaleFactor, viewport width/height, memento datetime,  
+- features (ENV or URL?): , switchDevices, scaleFactor, viewport width/height, memento datetime.
+- Trial running this with switchDevices post-crawl via CrawlCache/pywb patch mode.
 - Debug why switchDevices is reaaallly sloooow on some sites, e.g. www.wired.co.uk, where it also over-crawls.
 - Also check aria-label="Close" style buttons?
 - Switch screenshots over to a cleaner URN scheme, possibly PWIDs.
