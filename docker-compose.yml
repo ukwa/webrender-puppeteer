@@ -1,4 +1,4 @@
-version: '2'
+version: '3.7'
 
 services:
 
@@ -18,6 +18,7 @@ services:
       - "PUPPETEER_CLUSTER_SIZE=2"
       - "WARC_OUTPUT_PATH=/heritrix/wren"
       - "WARC_PREFIX=BL-WEBRENDERED"
+      - "USER_AGENT_ADDITIONAL=bl.uk_lddc_renderbot/{{version}} (+https://www.bl.uk/legal-deposit/web-archiving)"
     ports:
       - "8010:8010"
     volumes:
@@ -26,8 +27,8 @@ services:
   # WARC Proxy, with de-duplication disabled and a rapid rollover:
   warcprox:
     image: ukwa/warcprox:2.4.17
-    command: "warcprox -b 0.0.0.0 -d /heritrix/wren --base32 --gzip --rollover-idle-time 600 --dedup-db-file /dev/null --stats-db-file /dev/null --prefix BL-WARCPROX"
-    #command: "warcprox -b 0.0.0.0 -d /heritrix/wren --base32 --gzip --rollover-idle-time 600 --dedup-db-file /dev/null --stats-db-file /dev/null --prefix BL-WARCPROX --trace"
+    command: "warcprox -b 0.0.0.0 -d /heritrix/wren --base32 --gzip --rollover-idle-time 600 --dedup-db-file /dev/null --stats-db-file /dev/null --prefix PREFIX-DEFAULT"
+    #command: "warcprox -b 0.0.0.0 -d /heritrix/wren --base32 --gzip --rollover-idle-time 600 --dedup-db-file /dev/null --stats-db-file /dev/null --prefix PREFIX-DEFAULT --trace"
     environment:
       - "LC_ALL=en_US.utf8"
       - "TMP=/tmp/warcprox"
@@ -35,6 +36,8 @@ services:
       - "8000:8000"
     volumes:
       - "./integration-test/output:/heritrix/wren"
+    depends_on:
+      - acid.matkelly.com
 
   # Robot Integration Tests
   robot:
@@ -45,4 +48,15 @@ services:
     volumes:
       - ./integration-test/tests:/tests:ro
       - ./integration-test/results:/results:rw
+
+  # Local version of the Archival Acid Test: http://acid.matkelly.com
+  acidtest:
+    image: ukwa/archival-acid-test:master
+    ports:
+      - "5080:80"
+    networks:
+      default:
+        aliases:
+          - acid.matkelly.com
+          - www.cs.odu.edu # Emulating the remote host via a simple alias.
 
