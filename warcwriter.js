@@ -3,13 +3,11 @@
 // 'use strict' not required for modules?;
 
 const fs = require('fs');
+const path = require("path");
 const Crypto = require('crypto')
 const { WARCRecord, WARCSerializer } = require("warcio");
 
 const warcVersion = "WARC/1.1";
-const warcInfo = {
-    "software": "warcio.js in node"
-}
 
 // 1GB default WARC size:
 const MAX_WARC_SIZE_B = parseInt(process.env.MAX_WARC_SIZE_B || '0', 10) || 1000*1000*1000; 
@@ -22,14 +20,16 @@ const MAX_WARC_PERIOD_MS = parseInt(process.env.MAX_WARC_PERIOD_MS || '0', 10) |
  */
 class WARCWriter {
 
-    constructor( outputPath, warcPrefix ) {
+    constructor( outputPath, warcPrefix, warcInfo ) {
         this.outputPath = outputPath;
         this.warcPrefix = warcPrefix;
+        this.warcInfo = warcInfo;
         
         this.stream = null;
         this.written = 0;
         this.openedAt = null;
         this.writerId = WARCWriter.randomId();
+        this.index = -1; // Sequence ID for WARC file, incremented before minting the name.
 
         // Store a reference to this where the shutdown handler can get to it:
         var self = this;
@@ -92,7 +92,7 @@ class WARCWriter {
     _rotateOutputFile() {
         this._closeOutputFile();
         // Make a new file:
-        const filename = this._generateFilename(null,1);
+        const filename = this._generateFilename(null);
         this.filename = filename;
         this.stream = fs.createWriteStream(filename);
         this.stream.filename = filename;
@@ -102,11 +102,15 @@ class WARCWriter {
         });
     }
 
-    _generateFilename(time, index) {
+    _generateFilename(time) {
         if (!time) {
             time = new Date();
         }
-      
+
+        // Increment the index:
+        this.index += 1;
+
+        // How to pad:
         const pad = num => (num > 9 ? "" : "0") + num;
         
         var month = time.getFullYear() + "" + pad(time.getMonth() + 1);
@@ -116,7 +120,7 @@ class WARCWriter {
         var seconds = pad(time.getSeconds());
         var ms = time.getMilliseconds().toString().padStart(3,'0');
       
-        return `${this.outputPath}/${this.warcPrefix}-${month}${day}${hour}${minute}${seconds}${ms}-${index.toString().padStart(5,'0')}-${this.writerId}.warc.gz.open`;
+        return `${this.outputPath}/${this.warcPrefix}-${month}${day}${hour}${minute}${seconds}${ms}-${this.index.toString().padStart(5,'0')}-${this.writerId}.warc.gz.open`;
     };
 
     async _write(record) {
@@ -136,10 +140,9 @@ class WARCWriter {
     }
 
     async _writeWarcInfo(filename) {
-        // Slice the .open off the end:
-        const warcFilename = filename.slice(0, -5);
-        // TODO use just the file name, strip the path:
-        const warcInfoRecord = WARCRecord.createWARCInfo({filename: warcFilename, warcVersion}, warcInfo);
+        // Just the filename, and slice the .open off the end:
+        const warcFilename = path.basename(filename.slice(0, -5));
+        const warcInfoRecord = WARCRecord.createWARCInfo({filename: warcFilename, warcVersion}, this.warcInfo);
         //console.log(warcInfoRecord);
         this.stream.write( await WARCSerializer.serialize(warcInfoRecord, {gzip: true} ) );
     }
