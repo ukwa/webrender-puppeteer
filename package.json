@@ -1,6 +1,6 @@
 {
   "name": "webrender-puppeteer",
-  "version": "1.0.14",
+  "version": "2.0.0",
   "description": "Render web pages for archival purposes",
   "main": "renderer.js",
   "scripts": {
