@@ -26,6 +26,7 @@ Prior to deployment
 - [x] Use warcprox_prefix parameter and passing that through as an extra header, as per
   - extra_headers = { "Warcprox-Meta" : json.dumps( { 'warc-prefix' : warc_prefix}) }
 - [x] USER_AGENT_ADDITIONAL 
+- [ ] Do _not_ use `{{` and `}}` for the version substitution as this conflicts with Docker Swarm. Using `@VERSION@` instead.
 - [ ] Decide how to handle separation of content. See below.
 
 In previous versions, records were sent to `warcprox` and the `warcPrefix` was used to separate WARCs into different streams. This version now stores the rendered content directly, in a single WARC file set. Therefore, to keep e.g. NPLD and By-Permission crawled data separate, we need a separate instance of the `webrender` service.
