@@ -17,7 +17,7 @@ services:
       - "NODE_ENV=development"
       - "PUPPETEER_CLUSTER_SIZE=2"
       - "WARC_OUTPUT_PATH=/heritrix/wren"
-      - "WARC_PREFIX=BL-WEBRENDERED"
+      - "WARC_PREFIX=BL"
       - "USER_AGENT_ADDITIONAL=bl.uk_lddc_renderbot/@VERSION@ (+https://www.bl.uk/legal-deposit/web-archiving)"
     ports:
       - "8010:8010"

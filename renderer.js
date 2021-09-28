@@ -6,6 +6,7 @@ const puppeteer = require('puppeteer');
 const fs = require('fs');
 const fsp = require("fs/promises");
 const temp = require('temp')
+const { finished } = require('stream/promises');
 const { promisify } = require('util');
 const PuppeteerHar = require('./puppeteer-har');
 //const WARCWriter = require('./warcwriter');
@@ -331,14 +332,16 @@ async function render_page(page, url, extraHeaders, warcPrefix=null) {
     var fsStream = temp.createWriteStream();
     console.log("GOT temp path: " + fsStream.path);
     pdf.pipe(fsStream);
-    fsStream.on('close', async function () {
-      console.log("PIPED to temp path: " + fsStream.path);
-      var stats = fs.statSync(fsStream.path);
-      pdfContentLength = stats.size;
-      pdf = fs.createReadStream(fsStream.path);
-      console.log("Opening Readable Stream " + fsStream.path);
-      await ww.writeRenderedImage(warcPrefix, `pdf:${url}`, finalUrl, 'application/pdf', pdf, pdfContentLength);
-    });
+    await finished(fsStream);
+    console.log("PIPED to temp path: " + fsStream.path);
+    var stats = fs.statSync(fsStream.path);
+    pdfContentLength = stats.size;
+    pdf = fs.createReadStream(fsStream.path);
+    console.log("Opening Readable Stream " + fsStream.path);
+    await ww.writeRenderedImage(warcPrefix, `pdf:${url}`, finalUrl, 'application/pdf', pdf, pdfContentLength);
+    console.log("Deleting temp file: " + fsStream.path);
+    await finished(pdf);
+    fs.rmSync(fsStream.path);
 
     // Store the full page with image map:
     const title = harStandard['log']['pages'][0]['title'];

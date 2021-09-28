@@ -24,13 +24,6 @@ class WARCPoster {
     
     async _write_record(uri, stream, contentType, contentLength, warcType, location, warcPrefix) {
         console.log(`Attempting to POST data for ${uri} with warcPrefix ${warcPrefix}`);
-        console.log("uri " + uri);
-        console.log("stream " + stream);
-        console.log("contentType " + contentType);
-        console.log("contentLength " + contentLength);
-        console.log("warcType " + warcType);
-        console.log("location " + location);
-        console.log("warcPrefix " + warcPrefix);
 
         const options = {
             host: this.proxy_host,
@@ -54,10 +47,7 @@ class WARCPoster {
 
         if( warcPrefix ) {
             options.headers['Warcprox-Meta'] = JSON.stringify( { 'warc-prefix' : warcPrefix } );
-            console.log(`ADDED WARCPROX HEADER. ${warcPrefix}`);
         }
-
-        console.log("Request headers: "+ options.headers);
 
         // We force this to be handled synchronously/awaited as we need 
         // the browser session to still be there if we are consuming a streamed pdf:
@@ -114,14 +104,12 @@ class WARCPoster {
         }
 
         if ( proxySupportsWarcWriteRecord ) {
-            console.log(`Attempting to store resource for ${url}...`);
 
             // We have to know the content length, so write to a temp file and use that if the contentLength is unset:
             if( contentLength == null ) {
                 return Error("Content length must be set!");
             }
 
-            console.log(`Got ${url} (finalUrl = ${finalUrl}). POSTing results to warcprox...`); 
             await this._write_record(
                 url,
                 stream,
