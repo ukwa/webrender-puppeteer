@@ -11,14 +11,13 @@ services:
         https_proxy: ${HTTPS_PROXY}
     environment: # DOCKER_HOST could be used to run rendering on a dedicated service.
       - "LC_ALL=en_US.utf8"
-      - "HTTP_PROXY=http://warcprox:8000/"
-      - "HTTPS_PROXY=http://warcprox:8000/"
+      - "HTTP_PROXY=http://warcprox:8000"
       - "PORT=8010"
       - "NODE_ENV=development"
       - "PUPPETEER_CLUSTER_SIZE=2"
       - "WARC_OUTPUT_PATH=/heritrix/wren"
       - "WARC_PREFIX=BL-WEBRENDERED"
-      - "USER_AGENT_ADDITIONAL=bl.uk_lddc_renderbot/{{version}} (+https://www.bl.uk/legal-deposit/web-archiving)"
+      - "USER_AGENT_ADDITIONAL=bl.uk_lddc_renderbot/@VERSION@ (+https://www.bl.uk/legal-deposit/web-archiving)"
     ports:
       - "8010:8010"
     volumes:

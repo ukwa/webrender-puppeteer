@@ -134,12 +134,12 @@ async function render_page(page, url, extraHeaders) {
   console.log("Default User-Agent: " + browserUserAgent );
   // Add optional userAgent override:
   if ('USER_AGENT' in process.env) {
-    console.log("Setting User-Agent: " + process.env.USER_AGENT.replace('{{version}}', packageVersion));
-    page.setUserAgent(process.env.USER_AGENT.replace('{{version}}', packageVersion));
+    console.log("Setting User-Agent: " + process.env.USER_AGENT.replace('@VERSION@', packageVersion));
+    page.setUserAgent(process.env.USER_AGENT.replace('@VERSION@', packageVersion));
     // e.g. 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) \
     // Chrome/37.0.2062.120 Safari/537.36';
   } else if ('USER_AGENT_ADDITIONAL' in process.env) {
-    const userAgent = `${browserUserAgent} ${process.env.USER_AGENT_ADDITIONAL}`.replace('{{version}}', packageVersion);
+    const userAgent = `${browserUserAgent} ${process.env.USER_AGENT_ADDITIONAL}`.replace('@VERSION@', packageVersion);
     console.log("Setting User-Agent: " + userAgent);
     page.setUserAgent(userAgent);
   }
