@@ -5,9 +5,11 @@
 const puppeteer = require('puppeteer');
 const fs = require('fs');
 const fsp = require("fs/promises");
+const temp = require('temp')
 const { promisify } = require('util');
 const PuppeteerHar = require('./puppeteer-har');
-const WARCWriter = require('./warcwriter');
+//const WARCWriter = require('./warcwriter');
+const WARCPoster = require('./warcPoster.js');
 
 // Read in the package JSON to get the version:
 const packageFileJSON = JSON.parse(fs.readFileSync("package.json"));
@@ -15,10 +17,11 @@ const packageVersion = packageFileJSON["version"];
 const softwareId = `ukwa/webrender-puppeteer:${packageVersion}`;
 
 // Set up WARC writing:
-const WARC_OUTPUT_PATH = process.env.WARC_OUTPUT_PATH || '.';
-const WARC_PREFIX = process.env.WARC_PREFIX || 'WEBRENDERED';
-const WARC_INFO = { 'software': softwareId };
-const ww = new WARCWriter(WARC_OUTPUT_PATH, WARC_PREFIX, WARC_INFO);
+//const WARC_OUTPUT_PATH = process.env.WARC_OUTPUT_PATH || '.';
+//const WARC_PREFIX = process.env.WARC_PREFIX || 'WEBRENDERED';
+//const WARC_INFO = { 'software': softwareId };
+//const ww = new WARCWriter(WARC_OUTPUT_PATH, WARC_PREFIX, WARC_INFO);
+const ww = new WARCPoster();
 
 // Get device list from Puppeteer:
 const { devices } = puppeteer;
@@ -86,7 +89,9 @@ const interceptAllTrafficForPageUsingFetch = async (target, extraHeaders) => {
   }
 }
 
-async function render_page(page, url, extraHeaders) {
+async function render_page(page, url, extraHeaders, warcPrefix=null) {
+  console.log("render_page got warcPrefix: " + warcPrefix );
+
   // Add hook to track activity and modify headers in all contexts (pages, workers, etc.):
   // Note that extraHTTPHeaders means the browser sends headers like:
   //   Access-Control-Request-Headers: warcprox-meta
@@ -252,18 +257,12 @@ async function render_page(page, url, extraHeaders) {
   console.log(`${url} - Rendering PDF...`);
   await page.emulateMediaType('screen');
   // Uses streaming mode to reduce RAM usage:
-  const pdf = await page.createPDFStream({
+  var pdf = await page.createPDFStream({
     format: 'A4',
     scale: 0.75,
     printBackground: true,
     timeout: 20*1000, // Use a shortish timeout as this can be flaky.
   });
-  // Iterate through the Readable stream chunks:
-  async function* content() {
-    for await (const chunk of pdf) {
-      yield chunk;
-    }
-  }
 
   // After rendering main view, attempt to switch between devices to grab alternative media
   if (switchDevices) {
@@ -319,21 +318,32 @@ async function render_page(page, url, extraHeaders) {
     'comment': 'https://github.com/ukwa/webrender-puppeteer'
   }
   // And write to WARC (even if there was no 'page' -- see below):
-  await ww.writeRenderedImageFromBuffer(`har:${url}`, 'application/json', new TextEncoder().encode(JSON.stringify(harStandard)));
+  const finalUrl = urls.url;
+  await ww.writeRenderedImageFromBuffer(warcPrefix, `har:${url}`, finalUrl, 'application/json', new TextEncoder().encode(JSON.stringify(harStandard)));
 
   // Check if there were any pages (there are none for e.g. PDFs):
   if( harStandard['log']['pages'].length > 0 ) {
     // Store HTML and PNG in WARCs:
-    await ww.writeRenderedImageFromBuffer(`onreadydom:${url}`, 'text/html', new TextEncoder().encode(html));
-    await ww.writeRenderedImageFromBuffer(`screenshot:${url}`, 'image/png', image);
+    await ww.writeRenderedImageFromBuffer(warcPrefix, `onreadydom:${url}`, finalUrl, 'text/html', new TextEncoder().encode(html));
+    await ww.writeRenderedImageFromBuffer(warcPrefix, `screenshot:${url}`, finalUrl, 'image/png', image);
 
     // Store the PDF:
-    await ww.writeRenderedImage(`pdf:${url}`, 'application/pdf', content);
+    var fsStream = temp.createWriteStream();
+    console.log("GOT temp path: " + fsStream.path);
+    pdf.pipe(fsStream);
+    fsStream.on('close', async function () {
+      console.log("PIPED to temp path: " + fsStream.path);
+      var stats = fs.statSync(fsStream.path);
+      pdfContentLength = stats.size;
+      pdf = fs.createReadStream(fsStream.path);
+      console.log("Opening Readable Stream " + fsStream.path);
+      await ww.writeRenderedImage(warcPrefix, `pdf:${url}`, finalUrl, 'application/pdf', pdf, pdfContentLength);
+    });
 
     // Store the full page with image map:
     const title = harStandard['log']['pages'][0]['title'];
     const imageMapHtml = _toImageMap(url, title, imageJpeg, urls.map);
-    await ww.writeRenderedImageFromBuffer(`imagemap:${url}`, 'text/html', new TextEncoder().encode(imageMapHtml));
+    await ww.writeRenderedImageFromBuffer(warcPrefix, `imagemap:${url}`, finalUrl, 'text/html', new TextEncoder().encode(imageMapHtml));
   }
 
   // Build extended/wrapper HAR:
@@ -425,7 +435,7 @@ async function render(url) {
   const page = await context.newPage();
 
   // Run the page-level rendering process:
-  harExtended = render_page(page, url, extraHeaders);
+  harExtended = render_page(page, url, extraHeaders, null);
 
   // Output prefix:
   let outPrefix = '/output/';

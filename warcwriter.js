@@ -192,6 +192,16 @@ WARC-Payload-Digest: sha1:WGZXBS7NYMDJZRCNGI3JVDLN3IX7NYHK
         await this._write(record);
     }
 
+    /*
+
+        // Iterate through the Readable stream chunks:
+         async function* content() {
+           for await (const chunk of pdf) {
+          yield chunk;
+           }
+         } 
+         */    
+
 }
 
 module.exports = WARCWriter

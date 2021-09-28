@@ -5,7 +5,7 @@ Library    RequestsLibrary
 *** Keywords ***
 Render This URL
     [Arguments]     ${url}
-    &{params}=      Create Dictionary    url=${url}    warc_prefix=BL-WEBRENDER-WARCPROX
+    &{params}=      Create Dictionary    url=${url}    warc_prefix=BL-NPLD-WEBRENDER-WARCPROX
     Log To Console 	Rendering ${url} (5m timeout)...
     ${response}=    GET  http://webrender:8010/render  params=${params}  expected_status=200  timeout=660
 

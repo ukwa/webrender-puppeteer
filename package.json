@@ -22,9 +22,9 @@
     "express": "^4.17.1",
     "express-prom-bundle": "^6.3.6",
     "prom-client": "^13.1.0",
-    "puppeteer": "^10.2.0",
+    "puppeteer": "10.2.0",
     "puppeteer-cluster": "^0.22.0",
-    "rotating-file-stream": "^2.1.5",
+    "temp": "^0.9.4",
     "warcio": "^1.4.8"
   }
 }

@@ -12,6 +12,7 @@ services:
     environment: # DOCKER_HOST could be used to run rendering on a dedicated service.
       - "LC_ALL=en_US.utf8"
       - "HTTP_PROXY=http://warcprox:8000"
+      - "WARCPROX_PROXY=true"
       - "PORT=8010"
       - "NODE_ENV=development"
       - "PUPPETEER_CLUSTER_SIZE=2"
@@ -36,7 +37,7 @@ services:
     volumes:
       - "./integration-test/output:/heritrix/wren"
     depends_on:
-      - acid.matkelly.com
+      - acidtest
 
   # Robot Integration Tests
   robot:
