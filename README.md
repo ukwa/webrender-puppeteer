@@ -8,14 +8,14 @@ Note that `npm` can be used to control versioning in `package.json` and tagging.
 Then a `git push origin master --follow-tags`` should build a suitably tagged release.
 
 Versions
-========
+--------
 
 The version 1 series was intended to be run via `ukwa/webrender-api` as Docker as a command that emitted files, which the calling service returned.
 
 Version 2 includes a native Node server that provides the same API, thus avoiding the problems caused by running very large numbers of Docker containers very quickly.
 
 To Do
-=====
+-----
 
 Prior to deployment
 
@@ -54,3 +54,9 @@ Current test sites:
 - Guardian https://www.theguardian.com/uk
 - BBC News https://www.bbc.co.uk/news
 - Wired https://www.wired.co.uk/
+
+Change Log
+----------
+
+- 2.1.0: Switch back to recording rendered WARCs via warcprox, so WARC file prefix naming and Kafka/CDX integration are retained.
+- 2.0.0: First Node implementation of the WebRender API.
