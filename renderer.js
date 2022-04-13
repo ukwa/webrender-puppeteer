@@ -117,9 +117,14 @@ async function render_page(page, url, extraHeaders, warcPrefix=null) {
   // Options for the render process:
   let switchDevices = false;
   if ('SWITCH_DEVICES' in process.env) {
-    switchDevices = process.env.SWITCH_DEVICES;
+    switchDevices = (process.env.SWITCH_DEVICES.toLowerCase().trim() === 'true');
   }
   console.log(`switchDevices = ${switchDevices}`);
+  let runBehaviours = true;
+  if ('RUN_BEHAVIOURS' in process.env) {
+    runBehaviours = (process.env.RUN_BEHAVIOURS.toLowerCase().trim() === 'true');
+  }
+  console.log(`runBehaviours = ${runBehaviours}`);
 
   // Main image width:
   const viewportWidth = parseInt(process.env.VIEWPORT_WIDTH) || 1366;
@@ -163,26 +168,30 @@ async function render_page(page, url, extraHeaders, warcPrefix=null) {
   try {
     // Main navigation
     await page.goto(url, { waitUntil: 'networkidle2' }); // Longer timeout set above
-    console.log(`${url} - Waiting for delayed popups...`);
-    await page.waitForTimeout(2*1000);
 
-    // Look for any "I Accept" buttons
-    console.log(`${url} - Looking for any modal buttons...`);
-    await clickKnownModals(page);
+    // Run behaviour scripts like scrollers:
+    if ( runBehaviours ) {
+      console.log(`${url} - Waiting for delayed popups...`);
+      await page.waitForTimeout(2*1000);
 
-    // Await for any more elements scrolling down prompted:
-    console.log(`${url} - Waiting for any activity to die down...`);
-    // Using networkidle0 will usually hang as this event has already passed.
-    // await page.waitForNavigation({ waitUntil: 'networkidle0' });
-    //await page.waitForNetworkIdle({timeout: 4000});
-    waitForNetworkIdle(page,4000);
-    await page.waitForTimeout(2*1000);
+      // Look for any "I Accept" buttons
+      console.log(`${url} - Looking for any modal buttons...`);
+      await clickKnownModals(page);
 
-    // Now scroll down:
-    console.log(`${url} - Scrolling down...`);
-    await autoScroll(page);
-    console.log(`${url} - Scrolling back to the top...`);
-    await page.evaluate('window.scrollTo(0,0)');
+      // Await for any more elements scrolling down prompted:
+      console.log(`${url} - Waiting for any activity to die down...`);
+      // Using networkidle0 will usually hang as this event has already passed.
+      // await page.waitForNavigation({ waitUntil: 'networkidle0' });
+      //await page.waitForNetworkIdle({timeout: 4000});
+      waitForNetworkIdle(page,4000);
+      await page.waitForTimeout(2*1000);
+
+      // Now scroll down:
+      console.log(`${url} - Scrolling down...`);
+      await autoScroll(page);
+      console.log(`${url} - Scrolling back to the top...`);
+      await page.evaluate('window.scrollTo(0,0)');
+    }
  
     // Set viewport to cover whole body:
     const bodyHandle = await page.$('body');
@@ -196,7 +205,6 @@ async function render_page(page, url, extraHeaders, warcPrefix=null) {
       console.log("Setting viewport: "+ viewportWidth + "x" + height);
       await page.setViewport({width: viewportWidth, height: height});
     }
-  
     // Await for any more elements scrolling down prompted:
     console.log(`${url} - Waiting for any activity to die down...`);
     //await page.waitForNetworkIdle({timeout: 4000});
@@ -319,34 +327,38 @@ async function render_page(page, url, extraHeaders, warcPrefix=null) {
     'comment': 'https://github.com/ukwa/webrender-puppeteer'
   }
   // And write to WARC (even if there was no 'page' -- see below):
-  const finalUrl = urls.url;
-  await ww.writeRenderedImageFromBuffer(warcPrefix, `har:${url}`, finalUrl, 'application/json', new TextEncoder().encode(JSON.stringify(harStandard)));
+  if ( ww.isEnabled() ) {
+    const finalUrl = urls.url;
+    await ww.writeRenderedImageFromBuffer(warcPrefix, `har:${url}`, finalUrl, 'application/json', new TextEncoder().encode(JSON.stringify(harStandard)));
 
-  // Check if there were any pages (there are none for e.g. PDFs):
-  if( harStandard['log']['pages'].length > 0 ) {
-    // Store HTML and PNG in WARCs:
-    await ww.writeRenderedImageFromBuffer(warcPrefix, `onreadydom:${url}`, finalUrl, 'text/html', new TextEncoder().encode(html));
-    await ww.writeRenderedImageFromBuffer(warcPrefix, `screenshot:${url}`, finalUrl, 'image/png', image);
+    // Check if there were any pages (there are none for e.g. PDFs):
+    if( harStandard['log']['pages'].length > 0 ) {
+      // Store HTML and PNG in WARCs:
+      await ww.writeRenderedImageFromBuffer(warcPrefix, `onreadydom:${url}`, finalUrl, 'text/html', new TextEncoder().encode(html));
+      await ww.writeRenderedImageFromBuffer(warcPrefix, `screenshot:${url}`, finalUrl, 'image/png', image);
 
-    // Store the PDF:
-    var fsStream = temp.createWriteStream();
-    console.log("GOT temp path: " + fsStream.path);
-    pdf.pipe(fsStream);
-    await finished(fsStream);
-    console.log("PIPED to temp path: " + fsStream.path);
-    var stats = fs.statSync(fsStream.path);
-    pdfContentLength = stats.size;
-    pdf = fs.createReadStream(fsStream.path);
-    console.log("Opening Readable Stream " + fsStream.path);
-    await ww.writeRenderedImage(warcPrefix, `pdf:${url}`, finalUrl, 'application/pdf', pdf, pdfContentLength);
-    console.log("Deleting temp file: " + fsStream.path);
-    await finished(pdf);
-    fs.rmSync(fsStream.path);
+      // Store the PDF:
+      var fsStream = temp.createWriteStream();
+      console.log("GOT temp path: " + fsStream.path);
+      pdf.pipe(fsStream);
+      await finished(fsStream);
+      console.log("PIPED to temp path: " + fsStream.path);
+      var stats = fs.statSync(fsStream.path);
+      pdfContentLength = stats.size;
+      pdf = fs.createReadStream(fsStream.path);
+      console.log("Opening Readable Stream " + fsStream.path);
+      await ww.writeRenderedImage(warcPrefix, `pdf:${url}`, finalUrl, 'application/pdf', pdf, pdfContentLength);
+      console.log("Deleting temp file: " + fsStream.path);
+      await finished(pdf);
+      fs.rmSync(fsStream.path);
 
-    // Store the full page with image map:
-    const title = harStandard['log']['pages'][0]['title'];
-    const imageMapHtml = _toImageMap(url, title, imageJpeg, urls.map);
-    await ww.writeRenderedImageFromBuffer(warcPrefix, `imagemap:${url}`, finalUrl, 'text/html', new TextEncoder().encode(imageMapHtml));
+      // Store the full page with image map:
+      const title = harStandard['log']['pages'][0]['title'];
+      const imageMapHtml = _toImageMap(url, title, imageJpeg, urls.map);
+      await ww.writeRenderedImageFromBuffer(warcPrefix, `imagemap:${url}`, finalUrl, 'text/html', new TextEncoder().encode(imageMapHtml));
+    }
+  } else {
+    console.log("WARC writing skipped.")
   }
 
   // Build extended/wrapper HAR:
@@ -362,6 +374,12 @@ async function render_page(page, url, extraHeaders, warcPrefix=null) {
     content: b64Content,
     encoding: 'base64',
     contentType: 'text/html',
+  };
+  const b64Viewport = Buffer.from(image).toString('base64');
+  harExtended.renderedViewport = {
+    content: b64Viewport,
+    encoding: 'base64',
+    contentType: 'image/png',
   };
 
   // Clean out the event listeners:

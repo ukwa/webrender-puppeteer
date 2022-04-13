@@ -21,6 +21,14 @@ class WARCPoster {
         }
         console.log("Proxy Supports WARCPROX_WRITE_RECORD: " + proxySupportsWarcWriteRecord);
     }
+
+    // Helper function to check if the WARC POSTer will work:
+    isEnabled() {
+        if ( proxySupportsWarcWriteRecord ) {
+            return true;
+        }
+        return false;
+    }
     
     async _write_record(uri, stream, contentType, contentLength, warcType, location, warcPrefix) {
         console.log(`Attempting to POST data for ${uri} with warcPrefix ${warcPrefix}`);
