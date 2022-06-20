@@ -77,9 +77,9 @@ const maxConcurrency = parseInt(process.env.PUPPETEER_CLUSTER_SIZE || '2', 10);
         // Add Memento Datetime header if needed:
         // e.g. Accept-Datetime: Thu, 31 May 2007 20:35:00 GMT
         if (targetDateStr) {
-          targetDate = Date(targetDateStr.replace(/(\d\d\d\d)(\d\d)(\d\d)(\d\d)(\d\d)(\d\d)/,'$1-$2-$3T$4:$5:$6'))
+          targetDate = new Date(targetDateStr.replace(/(\d\d\d\d)(\d\d)(\d\d)(\d\d)(\d\d)(\d\d)/,'$1-$2-$3T$4:$5:$6'));
+          console.log(`Got ${targetDateStr} -> Accept-Datetime: ${targetDate}`);
           extraHeaders['Accept-Datetime'] = targetDate.toUTCString();
-          console.log(`Got Accept-Datetime: ${targetDate}`)
         }
         // Add a warc-prefix as JSON in a Warcprox-Meta: header
         if (warcPrefix) {
@@ -108,6 +108,7 @@ const maxConcurrency = parseInt(process.env.PUPPETEER_CLUSTER_SIZE || '2', 10);
         try {
             const warcPrefix = req.query.warc_prefix || null;
             const targetDate = req.query.target_date || null;
+            const showScreenshot = req.query.show_screenshot || null;
             const har = await cluster.execute({ 
               url: req.query.url, 
               warcPrefix: warcPrefix,
@@ -115,7 +116,7 @@ const maxConcurrency = parseInt(process.env.PUPPETEER_CLUSTER_SIZE || '2', 10);
             });
             await update_metrics();
 
-            if (req.query.show_screenshot) {
+            if (showScreenshot) {
                 // respond with image:
                 screen = new Buffer.from( har.renderedViewport.content, 'base64' );
                 res.writeHead(200, {
