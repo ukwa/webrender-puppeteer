@@ -255,23 +255,26 @@ async function render_page(page, url, extraHeaders, warcPrefix=null) {
     return clickables;
   });
 
-  // Also get a JPEG for the imagemap:
-  console.log(`${url} - Rendering screenshot as JPEG...`);
-  const imageJpeg = await page.screenshot({ type: 'jpeg', quality: 100, fullPage: true });
-
   // And the HTML:
   const html = await page.content();
 
-  // Print to PDF but use the screen CSS:
-  console.log(`${url} - Rendering PDF...`);
-  await page.emulateMediaType('screen');
-  // Uses streaming mode to reduce RAM usage:
-  var pdf = await page.createPDFStream({
-    format: 'A4',
-    scale: 0.75,
-    printBackground: true,
-    timeout: 20*1000, // Use a shortish timeout as this can be flaky.
-  });
+  // Additional items to generate, if writing to WARC:
+  if ( ww.isEnabled() ) {
+    // Also get a JPEG for the imagemap:
+    console.log(`${url} - Rendering screenshot as JPEG...`);
+    const imageJpeg = await page.screenshot({ type: 'jpeg', quality: 100, fullPage: true });
+
+    // Print to PDF but use the screen CSS:
+    console.log(`${url} - Rendering PDF...`);
+    await page.emulateMediaType('screen');
+    // Uses streaming mode to reduce RAM usage:
+    var pdf = await page.createPDFStream({
+      format: 'A4',
+      scale: 0.75,
+      printBackground: true,
+      timeout: 20*1000, // Use a shortish timeout as this can be flaky.
+    });
+  }
 
   // After rendering main view, attempt to switch between devices to grab alternative media
   if (switchDevices) {

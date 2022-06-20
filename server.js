@@ -67,6 +67,7 @@ const maxConcurrency = parseInt(process.env.PUPPETEER_CLUSTER_SIZE || '2', 10);
     await cluster.task(async ({ page, data }) => {
         const url = data.url;
         const warcPrefix = data.warcPrefix;
+        const targetDateStr = data.targetDate;
         await update_metrics()
         // Render the page
         console.log(`${url} cluster.task running render with warcPrefix=${warcPrefix}`);
@@ -75,8 +76,10 @@ const maxConcurrency = parseInt(process.env.PUPPETEER_CLUSTER_SIZE || '2', 10);
         const extraHeaders = {};
         // Add Memento Datetime header if needed:
         // e.g. Accept-Datetime: Thu, 31 May 2007 20:35:00 GMT
-        if ('MEMENTO_ACCEPT_DATETIME' in process.env) {
-          extraHeaders['Accept-Datetime'] = process.env.MEMENTO_ACCEPT_DATETIME;
+        if (targetDateStr) {
+          targetDate = Date(targetDateStr.replace(/(\d\d\d\d)(\d\d)(\d\d)(\d\d)(\d\d)(\d\d)/,'$1-$2-$3T$4:$5:$6'))
+          extraHeaders['Accept-Datetime'] = targetDate.toUTCString();
+          console.log(`Got Accept-Datetime: ${targetDate}`)
         }
         // Add a warc-prefix as JSON in a Warcprox-Meta: header
         if (warcPrefix) {
@@ -104,7 +107,12 @@ const maxConcurrency = parseInt(process.env.PUPPETEER_CLUSTER_SIZE || '2', 10);
         }
         try {
             const warcPrefix = req.query.warc_prefix || null;
-            const har = await cluster.execute({ url: req.query.url, warcPrefix: warcPrefix });
+            const targetDate = req.query.target_date || null;
+            const har = await cluster.execute({ 
+              url: req.query.url, 
+              warcPrefix: warcPrefix,
+              targetDate: targetDate
+            });
             await update_metrics();
 
             if (req.query.show_screenshot) {
