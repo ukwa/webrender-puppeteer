@@ -262,7 +262,7 @@ async function render_page(page, url, extraHeaders, warcPrefix=null) {
   if ( ww.isEnabled() ) {
     // Also get a JPEG for the imagemap:
     console.log(`${url} - Rendering screenshot as JPEG...`);
-    const imageJpeg = await page.screenshot({ type: 'jpeg', quality: 100, fullPage: true });
+    var imageJpeg = await page.screenshot({ type: 'jpeg', quality: 100, fullPage: true });
 
     // Print to PDF but use the screen CSS:
     console.log(`${url} - Rendering PDF...`);
